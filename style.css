@@ -167,6 +167,28 @@ html, body {
 }
 
 /* ============================================================
+   Price summary bar — centred below controls
+   ============================================================ */
+.price-summary {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  background: rgba(26, 29, 40, 0.85);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.price-summary:empty { display: none; }
+
+/* ============================================================
    Route toggle button — top right
    ============================================================ */
 .route-toggle-btn {

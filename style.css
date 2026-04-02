@@ -700,7 +700,7 @@ html, body {
    Leaflet map tile / overlay adjustments
    ============================================================ */
 .leaflet-tile {
-  filter: brightness(0.85) saturate(0.9);
+  filter: brightness(1.05) saturate(1.1);
 }
 
 /* Keep controls legible */

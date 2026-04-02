@@ -57,7 +57,7 @@ function loadPrices() {
 }
 
 function showUpdateBadge() {
-    var badge = document.getElementById('update-badge');
+    var badge = document.getElementById('updateBadge');
     if (!badge || !pricesData || !pricesData.updated) return;
     var d = new Date(pricesData.updated);
     var opts = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
@@ -160,6 +160,19 @@ function renderMarkers() {
 // ============================================================
 // Utilities
 // ============================================================
+
+function updatePriceSummary() {
+    var el = document.getElementById('priceSummary');
+    if (!el) return;
+    if (!pricesData || !pricesData.fuel_types) { el.textContent = ''; return; }
+    var stations = pricesData.fuel_types[activeFuel];
+    if (!stations || stations.length === 0) { el.textContent = ''; return; }
+    var prices = stations.map(function(s) { return s.price; });
+    var min = Math.min.apply(null, prices);
+    var max = Math.max.apply(null, prices);
+    var avg = prices.reduce(function(a, b) { return a + b; }, 0) / prices.length;
+    el.textContent = min.toFixed(1) + '¢ – ' + max.toFixed(1) + '¢ · avg ' + avg.toFixed(1) + '¢ · ' + stations.length + ' stations';
+}
 
 function escapeHtml(str) {
     var d = document.createElement('div');

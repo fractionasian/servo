@@ -189,6 +189,28 @@ html, body {
 .price-summary:empty { display: none; }
 
 /* ============================================================
+   Cheapest near me button — top right, left of route toggle
+   ============================================================ */
+.nearby-btn {
+  position: absolute;
+  top: 12px;
+  right: 110px;
+  z-index: 500;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: background var(--transition);
+}
+
+.nearby-btn:hover { background: var(--surface2); }
+
+/* ============================================================
    Route toggle button — top right
    ============================================================ */
 .route-toggle-btn {

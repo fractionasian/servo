@@ -50,6 +50,7 @@ function loadPrices() {
             setupFuelSelector();
             setupRoutePanel();
             setupBrandFilter();
+            setupNearbyButton();
         })
         .catch(function(err) {
             console.error('Failed to load prices:', err);
@@ -222,6 +223,118 @@ function setupFuelSelector() {
             }
         });
     }
+}
+
+// ============================================================
+// Cheapest Near Me
+// ============================================================
+
+function setupNearbyButton() {
+    var btn = document.getElementById('nearbyBtn');
+    btn.addEventListener('click', function() {
+        if (!navigator.geolocation) return;
+        btn.textContent = '📍 Locating...';
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            btn.textContent = '📍 Near me';
+            showNearby(pos.coords.latitude, pos.coords.longitude);
+        }, function() {
+            btn.textContent = '📍 Near me';
+        });
+    });
+}
+
+function showNearby(lat, lng) {
+    if (!pricesData) return;
+    var stations = pricesData.fuel_types[activeFuel] || [];
+    var nearby = [];
+    for (var i = 0; i < stations.length; i++) {
+        var d = haversine(lat, lng, stations[i].lat, stations[i].lng);
+        if (d <= 5) {
+            nearby.push({ station: stations[i], dist: d });
+        }
+    }
+    nearby.sort(function(a, b) { return a.station.price - b.station.price; });
+    nearby = nearby.slice(0, 5);
+
+    if (routePoints) clearRoute();
+    renderNearbySidebar(nearby);
+    map.setView([lat, lng], 14);
+}
+
+function renderNearbySidebar(nearby) {
+    var sidebar = document.getElementById('sidebar');
+    var titleEl = document.getElementById('sidebarTitle');
+    titleEl.textContent = 'Cheapest near you';
+    var content = document.getElementById('sidebarContent');
+    while (content.firstChild) content.removeChild(content.firstChild);
+
+    if (nearby.length === 0) {
+        var msg = document.createElement('div');
+        msg.style.cssText = 'padding:16px;color:var(--text-dim);font-size:13px;';
+        msg.textContent = 'No stations within 5km.';
+        content.appendChild(msg);
+        sidebar.hidden = false;
+        return;
+    }
+
+    for (var i = 0; i < nearby.length; i++) {
+        var item = nearby[i];
+        var s = item.station;
+        var card = document.createElement('div');
+        card.className = 'station-card';
+
+        var cardHeader = document.createElement('div');
+        cardHeader.className = 'station-card-header';
+
+        var nameGroup = document.createElement('div');
+        nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
+
+        var rankSpan = document.createElement('span');
+        rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
+        rankSpan.textContent = String(i + 1);
+
+        var logo = document.createElement('img');
+        logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
+        logo.alt = '';
+        logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+        logo.onerror = function() { this.src = 'logos/default.svg'; };
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'station-card-name';
+        nameEl.textContent = s.station;
+
+        nameGroup.appendChild(rankSpan);
+        nameGroup.appendChild(logo);
+        nameGroup.appendChild(nameEl);
+
+        var priceEl = document.createElement('span');
+        priceEl.className = 'station-card-price price-cheap';
+        priceEl.textContent = s.price.toFixed(1) + 'c';
+
+        cardHeader.appendChild(nameGroup);
+        cardHeader.appendChild(priceEl);
+
+        var meta = document.createElement('div');
+        meta.className = 'station-card-meta';
+        var suburbEl = document.createElement('span');
+        suburbEl.textContent = s.suburb;
+        var distEl = document.createElement('span');
+        distEl.textContent = item.dist.toFixed(1) + 'km away';
+        meta.appendChild(suburbEl);
+        meta.appendChild(distEl);
+
+        card.appendChild(cardHeader);
+        card.appendChild(meta);
+
+        (function(station) {
+            card.addEventListener('click', function() {
+                map.setView([station.lat, station.lng], 16);
+            });
+        })(s);
+
+        content.appendChild(card);
+    }
+    sidebar.hidden = false;
 }
 
 // ============================================================
@@ -429,6 +542,8 @@ function clearRoute() {
     routePoints = null;
     var sidebar = document.getElementById('sidebar');
     sidebar.hidden = true;
+    var titleEl = document.getElementById('sidebarTitle');
+    if (titleEl) titleEl.textContent = 'On your route';
     // Remove dimmed class from all markers
     for (var i = 0; i < markers.length; i++) {
         var el = markers[i].getElement();

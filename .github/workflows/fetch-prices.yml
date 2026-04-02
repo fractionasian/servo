@@ -1,0 +1,31 @@
+name: Fetch FuelWatch Prices
+
+on:
+  schedule:
+    # 06:30 UTC = 2:30pm AWST (30 min after price lock-in)
+    - cron: '30 6 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch FuelWatch prices
+        run: python scripts/fetch_prices.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/prices.json
+          git diff --staged --quiet || git commit -m "data: update fuel prices $(date -u +%Y-%m-%d)"
+          git push

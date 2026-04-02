@@ -422,8 +422,183 @@ function decodePolyline(encoded) {
 }
 
 // ============================================================
-// Stubs for later tasks
+// Task 8: Corridor Filtering + Results Sidebar
+// ============================================================
+
+function updateCorridorFilter() {
+    if (!routePoints || !pricesData || !pricesData.fuel_types) return;
+
+    var stations = pricesData.fuel_types[activeFuel];
+    if (!stations) return;
+
+    var corridor = [];
+    for (var i = 0; i < stations.length; i++) {
+        var s = stations[i];
+        var slug = brandToSlug(s.brand);
+        if (hiddenBrands.has(slug)) continue;
+        var dist = minDistToRoute(s.lat, s.lng, routePoints);
+        if (dist <= CORRIDOR_RADIUS_KM) {
+            corridor.push({ station: s, dist: dist });
+        }
+    }
+
+    // Sort by price ascending
+    corridor.sort(function(a, b) { return a.station.price - b.station.price; });
+
+    // Dim/undim markers
+    for (var j = 0; j < markers.length; j++) {
+        var m = markers[j];
+        var ms = m._servoStation;
+        var el = m.getElement();
+        if (!el) continue;
+        var inner = el.querySelector('.price-marker');
+        if (!inner) continue;
+
+        var onRoute = false;
+        for (var k = 0; k < corridor.length; k++) {
+            if (corridor[k].station === ms) { onRoute = true; break; }
+        }
+        if (onRoute) {
+            inner.classList.remove('dimmed');
+        } else {
+            inner.classList.add('dimmed');
+        }
+    }
+
+    renderSidebar(corridor);
+}
+
+function renderSidebar(corridor) {
+    var sidebar = document.getElementById('sidebar');
+    var content = document.getElementById('sidebarContent');
+
+    // Clear existing cards using DOM methods
+    while (content.firstChild) {
+        content.removeChild(content.firstChild);
+    }
+
+    if (!corridor || corridor.length === 0) {
+        sidebar.hidden = true;
+        return;
+    }
+
+    sidebar.hidden = false;
+
+    var prices = corridor.map(function(c) { return c.station.price; });
+    var minP = Math.min.apply(null, prices);
+    var maxP = Math.max.apply(null, prices);
+    var range = maxP - minP || 1;
+
+    for (var i = 0; i < corridor.length; i++) {
+        var item = corridor[i];
+        var s = item.station;
+        var rank = i + 1;
+        var ratio = (s.price - minP) / range;
+        var priceClass = ratio < 0.33 ? 'price-cheap' : ratio < 0.66 ? 'price-mid' : 'price-dear';
+
+        // Card
+        var card = document.createElement('div');
+        card.className = 'station-card';
+
+        // Header row
+        var header = document.createElement('div');
+        header.className = 'station-card-header';
+
+        // Logo + name group
+        var nameGroup = document.createElement('div');
+        nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
+
+        var rankSpan = document.createElement('span');
+        rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
+        rankSpan.textContent = String(rank);
+
+        var logo = document.createElement('img');
+        logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
+        logo.alt = '';
+        logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+        logo.onerror = function() { this.src = 'logos/default.svg'; };
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'station-card-name';
+        nameEl.textContent = s.station;
+
+        nameGroup.appendChild(rankSpan);
+        nameGroup.appendChild(logo);
+        nameGroup.appendChild(nameEl);
+
+        var priceEl = document.createElement('span');
+        priceEl.className = 'station-card-price ' + priceClass;
+        priceEl.textContent = s.price.toFixed(1) + 'c';
+
+        header.appendChild(nameGroup);
+        header.appendChild(priceEl);
+
+        // Meta row
+        var meta = document.createElement('div');
+        meta.className = 'station-card-meta';
+
+        var suburbEl = document.createElement('span');
+        suburbEl.textContent = s.suburb;
+
+        var detourEl = document.createElement('span');
+        detourEl.textContent = (item.dist * 1000).toFixed(0) + 'm off route';
+
+        meta.appendChild(suburbEl);
+        meta.appendChild(detourEl);
+
+        card.appendChild(header);
+        card.appendChild(meta);
+
+        // Click to pan map
+        (function(station) {
+            card.addEventListener('click', function() {
+                map.panTo([station.lat, station.lng]);
+            });
+        })(s);
+
+        content.appendChild(card);
+    }
+}
+
+function minDistToRoute(lat, lng, route) {
+    var minDist = Infinity;
+    for (var i = 0; i < route.length - 1; i++) {
+        var d = pointToSegmentDist(lat, lng, route[i][0], route[i][1], route[i+1][0], route[i+1][1]);
+        if (d < minDist) minDist = d;
+    }
+    return minDist;
+}
+
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+    // Equirectangular approximation: scale longitude differences by cos(lat)
+    var cosLat = Math.cos((ax + bx) / 2 * Math.PI / 180);
+    var dx = (bx - ax) * cosLat;
+    var dy = by - ay;
+    var len2 = dx * dx + dy * dy;
+    var t = 0;
+    if (len2 > 0) {
+        var ex = (px - ax) * cosLat;
+        var ey = py - ay;
+        t = (ex * dx + ey * dy) / len2;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+    }
+    var closestLat = ax + t * (bx - ax);
+    var closestLng = ay + t * (by - ay);
+    return haversine(px, py, closestLat, closestLng);
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ============================================================
+// Stub for later task
 // ============================================================
 
 function setupBrandFilter() {}
-function updateCorridorFilter() {}

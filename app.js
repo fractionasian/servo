@@ -14,6 +14,11 @@ var markers = [];
 var routeLine = null;
 var routePoints = null;
 var hiddenBrands = new Set();
+var BRANDS_WITH_PNG = new Set([
+    '7eleven','ampol','atlas','betterchoice','bp','caltex','coles','costco',
+    'egampol','gull','liberty','metropetroleum','omgmetro','puma','pumaenergy',
+    'shell','united','woolworths'
+]);
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
 var lastCorridor = [];
@@ -135,10 +140,14 @@ function renderMarkers() {
         if (currentZoom <= 12) {
             html = '<div class="price-dot" style="background:' + colour + '"></div>';
         } else if (currentZoom <= 14) {
-            html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '"><span>' + priceText + '</span></div>';
+            var logoSrc = brandLogoSrc(slug);
+            html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '">' +
+                '<img src="' + logoSrc + '" width="14" height="14" alt="" onerror="this.style.display=\'none\'">' +
+                '<span>' + priceText + '</span></div>';
         } else {
+            var logoSrc = brandLogoSrc(slug);
             html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="logos/' + slug + '.svg" width="20" height="20" alt="" onerror="this.style.display=\'none\'">' +
+                '<img src="' + logoSrc + '" width="20" height="20" alt="" onerror="this.style.display=\'none\'">' +
                 '<span>' + priceText + '</span>' +
                 '</div>';
         }
@@ -219,6 +228,10 @@ function priceColour(ratio) {
 
 function brandToSlug(brand) {
     return brand.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function brandLogoSrc(slug) {
+    return 'logos/' + slug + (BRANDS_WITH_PNG.has(slug) ? '.png' : '.svg');
 }
 
 // ============================================================
@@ -307,7 +320,7 @@ function makeStationCard(station, rank, metaText, priceClass, clickFn) {
     rankSpan.textContent = String(rank);
 
     var logo = document.createElement('img');
-    logo.src = 'logos/' + brandToSlug(station.brand) + '.svg';
+    logo.src = brandLogoSrc(brandToSlug(station.brand));
     logo.alt = '';
     logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
     logo.onerror = function() { this.style.display = 'none'; };
@@ -869,7 +882,7 @@ function populateBrandFilter() {
             });
 
             var logo = document.createElement('img');
-            logo.src = 'logos/' + brand.slug + '.svg';
+            logo.src = brandLogoSrc(brand.slug);
             logo.alt = '';
             logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
             logo.onerror = function() { this.style.display = 'none'; };

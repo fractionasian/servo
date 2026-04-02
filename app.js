@@ -805,31 +805,35 @@ function setupSortToggle() {
 
 function setupBrandFilter() {
     var btn = document.getElementById('brandFilterBtn');
-    var dropdown = document.getElementById('brandDropdown');
+    var modal = document.getElementById('brandModal');
+    var closeBtn = document.getElementById('brandModalClose');
 
-    btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        dropdown.hidden = !dropdown.hidden;
-        btn.classList.toggle('active', !dropdown.hidden);
-        if (!dropdown.hidden) {
-            populateBrandFilter();
-        }
+    btn.addEventListener('click', function() {
+        modal.classList.remove('hidden');
+        btn.classList.add('active');
+        populateBrandFilter();
     });
 
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.brand-filter-wrap')) {
-            dropdown.hidden = true;
+    closeBtn.addEventListener('click', function() {
+        modal.classList.add('hidden');
+        btn.classList.remove('active');
+    });
+
+    // Click outside modal content closes it
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
             btn.classList.remove('active');
         }
     });
 }
 
 function populateBrandFilter() {
-    var dropdown = document.getElementById('brandDropdown');
+    var body = document.getElementById('brandModalBody');
 
     // Clear using DOM methods
-    while (dropdown.firstChild) {
-        dropdown.removeChild(dropdown.firstChild);
+    while (body.firstChild) {
+        body.removeChild(body.firstChild);
     }
 
     if (!pricesData || !pricesData.fuel_types) return;
@@ -873,7 +877,7 @@ function populateBrandFilter() {
             logo.src = 'logos/' + brand.slug + '.svg';
             logo.alt = '';
             logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
-            logo.onerror = function() { this.src = 'logos/default.svg'; };
+            logo.onerror = function() { this.style.display = 'none'; };
 
             var nameEl = document.createElement('span');
             nameEl.textContent = brand.name;
@@ -881,7 +885,7 @@ function populateBrandFilter() {
             item.appendChild(cb);
             item.appendChild(logo);
             item.appendChild(nameEl);
-            dropdown.appendChild(item);
+            body.appendChild(item);
         })(brands[j]);
     }
 }

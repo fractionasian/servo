@@ -21,6 +21,25 @@ var BRANDS_WITH_PNG = new Set([
 ]);
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
+
+// Persistence — restore user preferences from localStorage
+function savePrefs() {
+    try {
+        localStorage.setItem('servo-fuel', activeFuel);
+        localStorage.setItem('servo-hidden-brands', JSON.stringify(Array.from(hiddenBrands)));
+    } catch (e) {}
+}
+function loadPrefs() {
+    try {
+        var fuel = localStorage.getItem('servo-fuel');
+        if (fuel) activeFuel = fuel;
+        var hidden = localStorage.getItem('servo-hidden-brands');
+        if (hidden) {
+            var arr = JSON.parse(hidden);
+            hiddenBrands = new Set(arr);
+        }
+    } catch (e) {}
+}
 var lastCorridor = [];
 var locationMarker = null;
 var corridorCache = null;
@@ -46,6 +65,7 @@ function init() {
         }, 50);
     });
 
+    loadPrefs();
     loadPrices();
 }
 
@@ -240,7 +260,13 @@ function brandLogoSrc(slug) {
 
 function setupFuelSelector() {
     var buttons = document.querySelectorAll('[data-fuel]');
+    // Restore saved fuel selection
     for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].dataset.fuel === activeFuel) {
+            buttons[i].classList.add('active');
+        } else {
+            buttons[i].classList.remove('active');
+        }
         buttons[i].addEventListener('click', function() {
             var btns = document.querySelectorAll('[data-fuel]');
             for (var j = 0; j < btns.length; j++) {
@@ -248,6 +274,7 @@ function setupFuelSelector() {
             }
             this.classList.add('active');
             activeFuel = this.dataset.fuel;
+            savePrefs();
             renderMarkers();
             if (routePoints) {
                 updateCorridorFilter();
@@ -844,6 +871,7 @@ function populateBrandFilter() {
     selectAllBtn.textContent = 'Select all';
     selectAllBtn.addEventListener('click', function() {
         hiddenBrands.clear();
+        savePrefs();
         populateBrandFilter();
         renderMarkers();
         if (routePoints) updateCorridorFilter();
@@ -853,6 +881,7 @@ function populateBrandFilter() {
     deselectAllBtn.textContent = 'Deselect all';
     deselectAllBtn.addEventListener('click', function() {
         for (var b = 0; b < brands.length; b++) hiddenBrands.add(brands[b].slug);
+        savePrefs();
         populateBrandFilter();
         renderMarkers();
         if (routePoints) updateCorridorFilter();
@@ -875,6 +904,7 @@ function populateBrandFilter() {
                 } else {
                     hiddenBrands.add(brand.slug);
                 }
+                savePrefs();
                 renderMarkers();
                 if (routePoints) {
                     updateCorridorFilter();

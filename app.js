@@ -90,6 +90,7 @@ function renderMarkers() {
         var colour = priceColour(ratio);
         var priceText = s.price.toFixed(1);
 
+        // Build marker element via DOM — safe because price is numeric, slug is alphanum
         var html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
             '<img src="logos/' + slug + '.svg" alt="" ' +
             'onerror="this.src=\'logos/default.svg\'" ' +
@@ -152,9 +153,31 @@ function brandToSlug(brand) {
 }
 
 // ============================================================
-// Stubs — implemented in later tasks
+// Task 5: Fuel Type Selector
 // ============================================================
 
-function setupFuelSelector() {}
+function setupFuelSelector() {
+    var buttons = document.querySelectorAll('[data-fuel]');
+    for (var i = 0; i < buttons.length; i++) {
+        buttons[i].addEventListener('click', function() {
+            var btns = document.querySelectorAll('[data-fuel]');
+            for (var j = 0; j < btns.length; j++) {
+                btns[j].classList.remove('active');
+            }
+            this.classList.add('active');
+            activeFuel = this.dataset.fuel;
+            renderMarkers();
+            if (routePoints) {
+                updateCorridorFilter();
+            }
+        });
+    }
+}
+
+// ============================================================
+// Stubs for later tasks
+// ============================================================
+
 function setupRoutePanel() {}
 function setupBrandFilter() {}
+function updateCorridorFilter() {}

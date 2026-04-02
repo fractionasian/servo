@@ -335,10 +335,95 @@ function setupRoutePanel() {
 }
 
 // ============================================================
+// Task 7: OSRM Routing + Route Polyline
+// ============================================================
+
+function fetchRoute(fromLng, fromLat, toLng, toLat) {
+    var url = OSRM_URL + fromLng + ',' + fromLat + ';' + toLng + ',' + toLat +
+              '?overview=full&geometries=polyline';
+    return fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.routes || data.routes.length === 0) {
+                console.warn('OSRM: no route found');
+                return;
+            }
+            routePoints = decodePolyline(data.routes[0].geometry);
+            drawRoute();
+            updateCorridorFilter();
+        })
+        .catch(function(err) {
+            console.error('OSRM fetch error:', err);
+        });
+}
+
+function drawRoute() {
+    if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+    }
+    if (!routePoints || routePoints.length === 0) return;
+    routeLine = L.polyline(routePoints, {
+        color: '#4a9eff',
+        weight: 4,
+        opacity: 0.8
+    }).addTo(map);
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+}
+
+function clearRoute() {
+    if (routeLine) {
+        map.removeLayer(routeLine);
+        routeLine = null;
+    }
+    routePoints = null;
+    var sidebar = document.getElementById('sidebar');
+    sidebar.hidden = true;
+    // Remove dimmed class from all markers
+    for (var i = 0; i < markers.length; i++) {
+        var el = markers[i].getElement();
+        if (el) {
+            var inner = el.querySelector('.price-marker');
+            if (inner) inner.classList.remove('dimmed');
+        }
+    }
+}
+
+function decodePolyline(encoded) {
+    var result = [];
+    var index = 0;
+    var lat = 0;
+    var lng = 0;
+    while (index < encoded.length) {
+        var b, shift, result_val;
+        shift = 0;
+        result_val = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result_val |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        var dlat = (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
+        lat += dlat;
+
+        shift = 0;
+        result_val = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result_val |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        var dlng = (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
+        lng += dlng;
+
+        result.push([lat / 1e5, lng / 1e5]);
+    }
+    return result;
+}
+
+// ============================================================
 // Stubs for later tasks
 // ============================================================
 
-function fetchRoute() {}
-function clearRoute() {}
 function setupBrandFilter() {}
 function updateCorridorFilter() {}

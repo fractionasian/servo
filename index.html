@@ -24,9 +24,6 @@
     </div>
     <div class="brand-filter-wrap">
       <button class="brand-filter-btn" id="brandFilterBtn">Brands ▾</button>
-      <div class="brand-dropdown" id="brandDropdown" hidden>
-        <!-- Populated by app.js -->
-      </div>
     </div>
   </nav>
 
@@ -83,6 +80,17 @@
 
   <!-- Update badge -->
   <div class="update-badge" id="updateBadge"></div>
+
+  <!-- Brand filter modal -->
+  <div class="modal-overlay hidden" id="brandModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span>Filter by brand</span>
+        <button class="modal-close" id="brandModalClose">✕</button>
+      </div>
+      <div class="modal-body" id="brandModalBody"></div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

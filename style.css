@@ -563,6 +563,9 @@ html, body {
   cursor: pointer;
   transition: opacity var(--transition), transform var(--transition);
   line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .price-marker.cheap  { border-color: var(--green); color: var(--green); }
@@ -592,6 +595,7 @@ html, body {
   color: var(--text);
   white-space: nowrap;
   box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  display: inline-block;
 }
 
 .price-pill.dimmed,

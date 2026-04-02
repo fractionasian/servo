@@ -130,18 +130,23 @@ function renderMarkers() {
             html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '"><span>' + priceText + '</span></div>';
         } else {
             html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="logos/' + slug + '.svg" alt="" ' +
-                'onerror="this.src=\'logos/default.svg\'" ' +
-                'style="width:14px;height:14px;vertical-align:middle;margin-right:3px;">' +
+                '<img src="logos/' + slug + '.svg" width="14" height="14" alt="" onerror="this.style.display=\'none\'">' +
                 '<span>' + priceText + '</span>' +
                 '</div>';
         }
 
-        var icon = L.divIcon({
-            html: html,
-            className: '',
-            iconAnchor: [0, 0]
-        });
+        var iconOpts = { html: html, className: '' };
+        if (currentZoom <= 12) {
+            iconOpts.iconSize = [8, 8];
+            iconOpts.iconAnchor = [4, 4];
+        } else if (currentZoom <= 14) {
+            iconOpts.iconSize = null;
+            iconOpts.iconAnchor = [0, 8];
+        } else {
+            iconOpts.iconSize = null;
+            iconOpts.iconAnchor = [0, 12];
+        }
+        var icon = L.divIcon(iconOpts);
 
         var marker = L.marker([s.lat, s.lng], { icon: icon });
         marker._servoStation = s;

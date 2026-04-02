@@ -17,6 +17,7 @@ var hiddenBrands = new Set();
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
 var lastCorridor = [];
+var locationMarker = null;
 
 // Init
 function init() {
@@ -255,6 +256,12 @@ function setupNearbyButton() {
 
 function showNearby(lat, lng) {
     if (!pricesData) return;
+    // Show blue dot at current location
+    if (locationMarker) map.removeLayer(locationMarker);
+    locationMarker = L.circleMarker([lat, lng], {
+        radius: 8, color: '#fff', weight: 2,
+        fillColor: '#4a9eff', fillOpacity: 1
+    }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -10] });
     // Auto-close route panel if open
     var routePanel = document.getElementById('routePanel');
     var routeToggleBtn = document.getElementById('routeToggleBtn');
@@ -555,6 +562,10 @@ function clearRoute() {
     if (routeLine) {
         map.removeLayer(routeLine);
         routeLine = null;
+    }
+    if (locationMarker) {
+        map.removeLayer(locationMarker);
+        locationMarker = null;
     }
     routePoints = null;
     var sidebar = document.getElementById('sidebar');

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Servo — Perth Fuel Prices</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Fuel + brand controls bar -->
+  <nav class="controls">
+    <div class="fuel-buttons">
+      <button class="fuel-btn active" data-fuel="ulp">ULP</button>
+      <button class="fuel-btn" data-fuel="pulp">PULP</button>
+      <button class="fuel-btn" data-fuel="98">98</button>
+      <button class="fuel-btn" data-fuel="diesel">Diesel</button>
+    </div>
+    <div class="brand-filter-wrap">
+      <button class="brand-filter-btn" id="brandFilterBtn">Brands ▾</button>
+      <div class="brand-dropdown" id="brandDropdown" hidden>
+        <!-- Populated by app.js -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Route toggle button -->
+  <button class="route-toggle-btn" id="routeToggleBtn" title="Route planner">🧭 Route</button>
+
+  <!-- Route panel -->
+  <div class="route-panel" id="routePanel" hidden>
+    <div class="route-panel-header">Route planner</div>
+    <div class="route-input-group">
+      <input type="text" class="route-input" id="fromInput" placeholder="From…" autocomplete="off" />
+      <button class="locate-btn" id="locateBtn" title="Use my location">📍</button>
+    </div>
+    <div class="autocomplete-list" id="fromAutocomplete" hidden></div>
+    <div class="route-input-group">
+      <input type="text" class="route-input" id="toInput" placeholder="To…" autocomplete="off" />
+    </div>
+    <div class="autocomplete-list" id="toAutocomplete" hidden></div>
+    <div class="route-actions">
+      <button class="route-go-btn" id="routeGoBtn">Go</button>
+      <button class="route-clear-btn" id="routeClearBtn">Clear</button>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" hidden>
+    <div class="sidebar-header">
+      <span>On your route</span>
+      <button class="sidebar-close-btn" id="sidebarCloseBtn" title="Close">✕</button>
+    </div>
+    <div class="sidebar-content" id="sidebarContent">
+      <!-- Station cards populated by app.js -->
+    </div>
+  </aside>
+
+  <!-- Update badge -->
+  <div class="update-badge" id="updateBadge"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

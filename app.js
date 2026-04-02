@@ -15,6 +15,8 @@ var routeLine = null;
 var routePoints = null;
 var hiddenBrands = new Set();
 var currentZoom = DEFAULT_ZOOM;
+var corridorSortByDist = false;
+var lastCorridor = [];
 
 // Init
 function init() {
@@ -51,6 +53,7 @@ function loadPrices() {
             setupRoutePanel();
             setupBrandFilter();
             setupNearbyButton();
+            setupSortToggle();
         })
         .catch(function(err) {
             console.error('Failed to load prices:', err);
@@ -607,8 +610,15 @@ function updateCorridorFilter() {
         }
     }
 
-    // Sort by price ascending
-    corridor.sort(function(a, b) { return a.station.price - b.station.price; });
+    // Store for sort toggle re-renders
+    lastCorridor = corridor.slice();
+
+    // Sort by price or distance depending on toggle state
+    if (corridorSortByDist) {
+        corridor.sort(function(a, b) { return a.dist - b.dist; });
+    } else {
+        corridor.sort(function(a, b) { return a.station.price - b.station.price; });
+    }
 
     // Dim/undim markers
     for (var j = 0; j < markers.length; j++) {
@@ -760,6 +770,28 @@ function haversine(lat1, lon1, lat2, lon2) {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ============================================================
+// Sort Toggle
+// ============================================================
+
+function setupSortToggle() {
+    var btn = document.getElementById('sortToggle');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+        corridorSortByDist = !corridorSortByDist;
+        this.textContent = corridorSortByDist ? '↕ Distance' : '↕ Price';
+        if (lastCorridor.length > 0) {
+            var sorted = lastCorridor.slice();
+            if (corridorSortByDist) {
+                sorted.sort(function(a, b) { return a.dist - b.dist; });
+            } else {
+                sorted.sort(function(a, b) { return a.station.price - b.station.price; });
+            }
+            renderSidebar(sorted);
+        }
+    });
 }
 
 // ============================================================

@@ -447,6 +447,28 @@ html, body {
   flex-shrink: 0;
 }
 
+.sidebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-toggle {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.sort-toggle:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
 .sidebar-close-btn {
   background: transparent;
   border: none;

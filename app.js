@@ -21,7 +21,7 @@ var lastCorridor = [];
 // Init
 function init() {
     map = L.map('map', { zoomControl: false }).setView(PERTH_CENTER, DEFAULT_ZOOM);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
         maxZoom: 19,
     }).addTo(map);
@@ -130,7 +130,7 @@ function renderMarkers() {
             html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '"><span>' + priceText + '</span></div>';
         } else {
             html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="logos/' + slug + '.svg" width="14" height="14" alt="" onerror="this.style.display=\'none\'">' +
+                '<img src="logos/' + slug + '.svg" width="20" height="20" alt="" onerror="this.style.display=\'none\'">' +
                 '<span>' + priceText + '</span>' +
                 '</div>';
         }
@@ -309,7 +309,7 @@ function renderNearbySidebar(nearby) {
         var logo = document.createElement('img');
         logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
         logo.alt = '';
-        logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+        logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
         logo.onerror = function() { this.src = 'logos/default.svg'; };
 
         var nameEl = document.createElement('span');
@@ -700,7 +700,7 @@ function renderSidebar(corridor) {
         var logo = document.createElement('img');
         logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
         logo.alt = '';
-        logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+        logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
         logo.onerror = function() { this.src = 'logos/default.svg'; };
 
         var nameEl = document.createElement('span');
@@ -858,6 +858,31 @@ function populateBrandFilter() {
     }
     brands.sort(function(a, b) { return a.name.localeCompare(b.name); });
 
+    // Select all / Deselect all buttons
+    var actions = document.createElement('div');
+    actions.className = 'brand-modal-actions';
+    var selectAllBtn = document.createElement('button');
+    selectAllBtn.className = 'brand-action-btn';
+    selectAllBtn.textContent = 'Select all';
+    selectAllBtn.addEventListener('click', function() {
+        hiddenBrands.clear();
+        populateBrandFilter();
+        renderMarkers();
+        if (routePoints) updateCorridorFilter();
+    });
+    var deselectAllBtn = document.createElement('button');
+    deselectAllBtn.className = 'brand-action-btn';
+    deselectAllBtn.textContent = 'Deselect all';
+    deselectAllBtn.addEventListener('click', function() {
+        for (var b = 0; b < brands.length; b++) hiddenBrands.add(brands[b].slug);
+        populateBrandFilter();
+        renderMarkers();
+        if (routePoints) updateCorridorFilter();
+    });
+    actions.appendChild(selectAllBtn);
+    actions.appendChild(deselectAllBtn);
+    body.appendChild(actions);
+
     for (var j = 0; j < brands.length; j++) {
         (function(brand) {
             var item = document.createElement('label');
@@ -881,7 +906,7 @@ function populateBrandFilter() {
             var logo = document.createElement('img');
             logo.src = 'logos/' + brand.slug + '.svg';
             logo.alt = '';
-            logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+            logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
             logo.onerror = function() { this.style.display = 'none'; };
 
             var nameEl = document.createElement('span');

@@ -21,7 +21,7 @@ var lastCorridor = [];
 // Init
 function init() {
     map = L.map('map', { zoomControl: false }).setView(PERTH_CENTER, DEFAULT_ZOOM);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
         maxZoom: 19,
     }).addTo(map);
@@ -151,12 +151,14 @@ function renderMarkers() {
         var marker = L.marker([s.lat, s.lng], { icon: icon });
         marker._servoStation = s;
 
+        var directionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
         var popupHtml = '<div class="popup-name">' + escapeHtml(s.station) + '</div>' +
             '<div class="popup-brand">' + escapeHtml(s.brand) + '</div>' +
             '<div class="popup-prices">' +
             '<span class="popup-price-chip active-fuel">' + activeFuel.toUpperCase() + ' ' + priceText + 'c</span>' +
             '</div>' +
-            '<div class="popup-address">' + escapeHtml(s.address) + ', ' + escapeHtml(s.suburb) + '</div>';
+            '<div class="popup-address">' + escapeHtml(s.address) + ', ' + escapeHtml(s.suburb) + '</div>' +
+            '<a class="popup-directions" href="' + directionsUrl + '" target="_blank" rel="noopener">Directions ↗</a>';
 
         marker.bindPopup(popupHtml);
         marker.addTo(map);
@@ -261,6 +263,8 @@ function showNearby(lat, lng) {
     var stations = pricesData.fuel_types[activeFuel] || [];
     var nearby = [];
     for (var i = 0; i < stations.length; i++) {
+        var slug = brandToSlug(stations[i].brand);
+        if (hiddenBrands.has(slug)) continue;
         var d = haversine(lat, lng, stations[i].lat, stations[i].lng);
         if (d <= 5) {
             nearby.push({ station: stations[i], dist: d });

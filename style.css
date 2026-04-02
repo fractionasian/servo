@@ -189,6 +189,30 @@ html, body {
 .price-summary:empty { display: none; }
 
 /* ============================================================
+   Colour legend — centred below price summary
+   ============================================================ */
+.colour-legend {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+.legend-gradient {
+  width: 80px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--green), var(--yellow), var(--red));
+}
+
+/* ============================================================
    Cheapest near me button — top right, left of route toggle
    ============================================================ */
 .nearby-btn {

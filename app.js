@@ -14,6 +14,7 @@ var markers = [];
 var routeLine = null;
 var routePoints = null;
 var hiddenBrands = new Set();
+var currentZoom = DEFAULT_ZOOM;
 
 // Init
 function init() {
@@ -23,6 +24,13 @@ function init() {
         maxZoom: 19,
     }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    map.on('zoomend moveend', function() {
+        currentZoom = map.getZoom();
+        renderMarkers();
+        if (routePoints) updateCorridorFilter();
+    });
+
     loadPrices();
 }
 
@@ -80,23 +88,50 @@ function renderMarkers() {
     var maxP = Math.max.apply(null, prices);
     var range = maxP - minP || 1;
 
+    // Viewport culling — only render within current bounds + 10% buffer
+    var bounds = map.getBounds().pad(0.1);
+
+    // Filter to visible, non-hidden stations sorted cheapest first (for collision culling)
+    var visible = [];
     for (var i = 0; i < stations.length; i++) {
         var s = stations[i];
+        if (hiddenBrands.has(brandToSlug(s.brand))) continue;
+        if (!bounds.contains([s.lat, s.lng])) continue;
+        visible.push(s);
+    }
+    visible.sort(function(a, b) { return a.price - b.price; });
+
+    // Collision culling — 40px grid, cheapest station wins each cell
+    var cellSize = currentZoom <= 12 ? 20 : 40;
+    var occupiedCells = {};
+
+    for (var j = 0; j < visible.length; j++) {
+        var s = visible[j];
         var slug = brandToSlug(s.brand);
-
-        if (hiddenBrands.has(slug)) continue;
-
         var ratio = (s.price - minP) / range;
         var colour = priceColour(ratio);
         var priceText = s.price.toFixed(1);
 
-        // Build marker element via DOM — safe because price is numeric, slug is alphanum
-        var html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-            '<img src="logos/' + slug + '.svg" alt="" ' +
-            'onerror="this.src=\'logos/default.svg\'" ' +
-            'style="width:14px;height:14px;vertical-align:middle;margin-right:3px;">' +
-            '<span>' + priceText + '</span>' +
-            '</div>';
+        // Collision check
+        var px = map.latLngToContainerPoint([s.lat, s.lng]);
+        var cellKey = Math.floor(px.x / cellSize) + ',' + Math.floor(px.y / cellSize);
+        if (occupiedCells[cellKey]) continue;
+        occupiedCells[cellKey] = true;
+
+        // Zoom-adaptive marker HTML
+        var html;
+        if (currentZoom <= 12) {
+            html = '<div class="price-dot" style="background:' + colour + '"></div>';
+        } else if (currentZoom <= 14) {
+            html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '"><span>' + priceText + '</span></div>';
+        } else {
+            html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
+                '<img src="logos/' + slug + '.svg" alt="" ' +
+                'onerror="this.src=\'logos/default.svg\'" ' +
+                'style="width:14px;height:14px;vertical-align:middle;margin-right:3px;">' +
+                '<span>' + priceText + '</span>' +
+                '</div>';
+        }
 
         var icon = L.divIcon({
             html: html,
@@ -118,6 +153,8 @@ function renderMarkers() {
         marker.addTo(map);
         markers.push(marker);
     }
+
+    updatePriceSummary();
 }
 
 // ============================================================
@@ -383,7 +420,7 @@ function clearRoute() {
     for (var i = 0; i < markers.length; i++) {
         var el = markers[i].getElement();
         if (el) {
-            var inner = el.querySelector('.price-marker');
+            var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
             if (inner) inner.classList.remove('dimmed');
         }
     }
@@ -451,7 +488,7 @@ function updateCorridorFilter() {
         var ms = m._servoStation;
         var el = m.getElement();
         if (!el) continue;
-        var inner = el.querySelector('.price-marker');
+        var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
         if (!inner) continue;
 
         var onRoute = false;

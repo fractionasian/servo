@@ -484,6 +484,29 @@ html, body {
   transform: scale(0.9);
 }
 
+/* Zoom-adaptive marker tiers */
+.price-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 3px rgba(0,0,0,0.5);
+}
+
+.price-pill {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.price-pill.dimmed,
+.price-dot.dimmed { opacity: 0.15; }
+
 .price-marker:hover {
   z-index: 1000 !important;
   transform: scale(1.1);

@@ -458,7 +458,7 @@ html, body {
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 400;
+  z-index: 600;
   width: 340px;
   background: var(--surface);
   border-left: 1px solid var(--border);

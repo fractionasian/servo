@@ -253,6 +253,11 @@ function setupNearbyButton() {
 
 function showNearby(lat, lng) {
     if (!pricesData) return;
+    // Auto-close route panel if open
+    var routePanel = document.getElementById('routePanel');
+    var routeToggleBtn = document.getElementById('routeToggleBtn');
+    if (routePanel) routePanel.hidden = true;
+    if (routeToggleBtn) routeToggleBtn.classList.remove('active');
     var stations = pricesData.fuel_types[activeFuel] || [];
     var nearby = [];
     for (var i = 0; i < stations.length; i++) {

@@ -18,6 +18,8 @@ var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
 var lastCorridor = [];
 var locationMarker = null;
+var corridorCache = null;
+var _suburbListCache = null;
 
 // Init
 function init() {
@@ -28,10 +30,15 @@ function init() {
     }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+    var renderTimer = null;
     map.on('zoomend moveend', function() {
         currentZoom = map.getZoom();
-        renderMarkers();
-        if (routePoints) updateCorridorFilter();
+        if (renderTimer) clearTimeout(renderTimer);
+        renderTimer = setTimeout(function() {
+            renderTimer = null;
+            renderMarkers();
+            if (routePoints) applyCorridorDimming();
+        }, 50);
     });
 
     loadPrices();
@@ -215,7 +222,7 @@ function brandToSlug(brand) {
 }
 
 // ============================================================
-// Task 5: Fuel Type Selector
+// Fuel Type Selector
 // ============================================================
 
 function setupFuelSelector() {
@@ -285,6 +292,57 @@ function showNearby(lat, lng) {
     map.setView([lat, lng], 14);
 }
 
+function makeStationCard(station, rank, metaText, priceClass, clickFn) {
+    var card = document.createElement('div');
+    card.className = 'station-card';
+
+    var header = document.createElement('div');
+    header.className = 'station-card-header';
+
+    var nameGroup = document.createElement('div');
+    nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
+
+    var rankSpan = document.createElement('span');
+    rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
+    rankSpan.textContent = String(rank);
+
+    var logo = document.createElement('img');
+    logo.src = 'logos/' + brandToSlug(station.brand) + '.svg';
+    logo.alt = '';
+    logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
+    logo.onerror = function() { this.style.display = 'none'; };
+
+    var nameEl = document.createElement('span');
+    nameEl.className = 'station-card-name';
+    nameEl.textContent = station.station;
+
+    nameGroup.appendChild(rankSpan);
+    nameGroup.appendChild(logo);
+    nameGroup.appendChild(nameEl);
+
+    var priceEl = document.createElement('span');
+    priceEl.className = 'station-card-price ' + priceClass;
+    priceEl.textContent = station.price.toFixed(1) + 'c';
+
+    header.appendChild(nameGroup);
+    header.appendChild(priceEl);
+
+    var meta = document.createElement('div');
+    meta.className = 'station-card-meta';
+    var suburbEl = document.createElement('span');
+    suburbEl.textContent = station.suburb;
+    var detailEl = document.createElement('span');
+    detailEl.textContent = metaText;
+    meta.appendChild(suburbEl);
+    meta.appendChild(detailEl);
+
+    card.appendChild(header);
+    card.appendChild(meta);
+    card.addEventListener('click', clickFn);
+
+    return card;
+}
+
 function renderNearbySidebar(nearby) {
     var sidebar = document.getElementById('sidebar');
     var titleEl = document.getElementById('sidebarTitle');
@@ -302,78 +360,26 @@ function renderNearbySidebar(nearby) {
     }
 
     for (var i = 0; i < nearby.length; i++) {
-        var item = nearby[i];
-        var s = item.station;
-        var card = document.createElement('div');
-        card.className = 'station-card';
-
-        var cardHeader = document.createElement('div');
-        cardHeader.className = 'station-card-header';
-
-        var nameGroup = document.createElement('div');
-        nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
-
-        var rankSpan = document.createElement('span');
-        rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
-        rankSpan.textContent = String(i + 1);
-
-        var logo = document.createElement('img');
-        logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
-        logo.alt = '';
-        logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
-        logo.onerror = function() { this.src = 'logos/default.svg'; };
-
-        var nameEl = document.createElement('span');
-        nameEl.className = 'station-card-name';
-        nameEl.textContent = s.station;
-
-        nameGroup.appendChild(rankSpan);
-        nameGroup.appendChild(logo);
-        nameGroup.appendChild(nameEl);
-
-        var priceEl = document.createElement('span');
-        priceEl.className = 'station-card-price price-cheap';
-        priceEl.textContent = s.price.toFixed(1) + 'c';
-
-        cardHeader.appendChild(nameGroup);
-        cardHeader.appendChild(priceEl);
-
-        var meta = document.createElement('div');
-        meta.className = 'station-card-meta';
-        var suburbEl = document.createElement('span');
-        suburbEl.textContent = s.suburb;
-        var distEl = document.createElement('span');
-        distEl.textContent = item.dist.toFixed(1) + 'km away';
-        meta.appendChild(suburbEl);
-        meta.appendChild(distEl);
-
-        card.appendChild(cardHeader);
-        card.appendChild(meta);
-
-        (function(station) {
-            card.addEventListener('click', function() {
-                map.setView([station.lat, station.lng], 16);
-            });
-        })(s);
-
-        content.appendChild(card);
+        (function(item, rank) {
+            var card = makeStationCard(
+                item.station,
+                rank,
+                item.dist.toFixed(1) + 'km away',
+                'price-cheap',
+                function() { map.setView([item.station.lat, item.station.lng], 16); }
+            );
+            content.appendChild(card);
+        })(nearby[i], i + 1);
     }
     sidebar.hidden = false;
 }
 
 // ============================================================
-// Task 6: Route Panel + Suburb Autocomplete
+// Route Panel + Suburb Autocomplete
 // ============================================================
 
-function getSavedLocations() {
-    try {
-        return JSON.parse(localStorage.getItem('servo-locations') || '{}');
-    } catch (e) {
-        return {};
-    }
-}
-
 function getSuburbList() {
+    if (_suburbListCache) return _suburbListCache;
     if (!pricesData || !pricesData.fuel_types) return [];
     var seen = {};
     var result = [];
@@ -390,6 +396,7 @@ function getSuburbList() {
         }
     }
     result.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    _suburbListCache = result;
     return result;
 }
 
@@ -413,17 +420,6 @@ function showAutocomplete(input) {
 
     var results = [];
 
-    // Saved locations first (prefixed with pin)
-    var saved = getSavedLocations();
-    var savedKeys = Object.keys(saved);
-    for (var i = 0; i < savedKeys.length; i++) {
-        var k = savedKeys[i];
-        if (k.toLowerCase().indexOf(query) !== -1) {
-            results.push({ label: '\uD83D\uDCCC ' + k, lat: saved[k].lat, lng: saved[k].lng });
-        }
-    }
-
-    // Suburbs
     var suburbs = getSuburbList();
     for (var j = 0; j < suburbs.length; j++) {
         var sub = suburbs[j];
@@ -446,7 +442,7 @@ function showAutocomplete(input) {
             el.textContent = item.label;
             el.addEventListener('mousedown', function(e) {
                 e.preventDefault();
-                input.value = item.label.replace(/^\uD83D\uDCCC\s*/, '');
+                input.value = item.label;
                 input.dataset.lat = item.lat;
                 input.dataset.lng = item.lng;
                 list.hidden = true;
@@ -522,12 +518,12 @@ function setupRoutePanel() {
 }
 
 // ============================================================
-// Task 7: OSRM Routing + Route Polyline
+// OSRM Routing
 // ============================================================
 
 function fetchRoute(fromLng, fromLat, toLng, toLat) {
     var url = OSRM_URL + fromLng + ',' + fromLat + ';' + toLng + ',' + toLat +
-              '?overview=full&geometries=polyline';
+              '?overview=simplified&geometries=polyline';
     return fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -568,6 +564,7 @@ function clearRoute() {
         locationMarker = null;
     }
     routePoints = null;
+    corridorCache = null;
     var sidebar = document.getElementById('sidebar');
     sidebar.hidden = true;
     var titleEl = document.getElementById('sidebarTitle');
@@ -615,7 +612,7 @@ function decodePolyline(encoded) {
 }
 
 // ============================================================
-// Task 8: Corridor Filtering + Results Sidebar
+// Corridor Filtering + Results Sidebar
 // ============================================================
 
 function updateCorridorFilter() {
@@ -635,6 +632,9 @@ function updateCorridorFilter() {
         }
     }
 
+    // Cache corridor results — only recomputed when route/fuel/brands change
+    corridorCache = corridor.slice();
+
     // Store for sort toggle re-renders
     lastCorridor = corridor.slice();
 
@@ -645,7 +645,19 @@ function updateCorridorFilter() {
         corridor.sort(function(a, b) { return a.station.price - b.station.price; });
     }
 
-    // Dim/undim markers
+    applyCorridorDimming();
+    renderSidebar(corridor);
+}
+
+function applyCorridorDimming() {
+    if (!corridorCache) return;
+
+    // O(n) lookup with Set
+    var corridorSet = new Set();
+    for (var c = 0; c < corridorCache.length; c++) {
+        corridorSet.add(corridorCache[c].station);
+    }
+
     for (var j = 0; j < markers.length; j++) {
         var m = markers[j];
         var ms = m._servoStation;
@@ -654,25 +666,18 @@ function updateCorridorFilter() {
         var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
         if (!inner) continue;
 
-        var onRoute = false;
-        for (var k = 0; k < corridor.length; k++) {
-            if (corridor[k].station === ms) { onRoute = true; break; }
-        }
-        if (onRoute) {
+        if (corridorSet.has(ms)) {
             inner.classList.remove('dimmed');
         } else {
             inner.classList.add('dimmed');
         }
     }
-
-    renderSidebar(corridor);
 }
 
 function renderSidebar(corridor) {
     var sidebar = document.getElementById('sidebar');
     var content = document.getElementById('sidebarContent');
 
-    // Clear existing cards using DOM methods
     while (content.firstChild) {
         content.removeChild(content.firstChild);
     }
@@ -690,73 +695,19 @@ function renderSidebar(corridor) {
     var range = maxP - minP || 1;
 
     for (var i = 0; i < corridor.length; i++) {
-        var item = corridor[i];
-        var s = item.station;
-        var rank = i + 1;
-        var ratio = (s.price - minP) / range;
-        var priceClass = ratio < 0.33 ? 'price-cheap' : ratio < 0.66 ? 'price-mid' : 'price-dear';
-
-        // Card
-        var card = document.createElement('div');
-        card.className = 'station-card';
-
-        // Header row
-        var header = document.createElement('div');
-        header.className = 'station-card-header';
-
-        // Logo + name group
-        var nameGroup = document.createElement('div');
-        nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
-
-        var rankSpan = document.createElement('span');
-        rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
-        rankSpan.textContent = String(rank);
-
-        var logo = document.createElement('img');
-        logo.src = 'logos/' + brandToSlug(s.brand) + '.svg';
-        logo.alt = '';
-        logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
-        logo.onerror = function() { this.src = 'logos/default.svg'; };
-
-        var nameEl = document.createElement('span');
-        nameEl.className = 'station-card-name';
-        nameEl.textContent = s.station;
-
-        nameGroup.appendChild(rankSpan);
-        nameGroup.appendChild(logo);
-        nameGroup.appendChild(nameEl);
-
-        var priceEl = document.createElement('span');
-        priceEl.className = 'station-card-price ' + priceClass;
-        priceEl.textContent = s.price.toFixed(1) + 'c';
-
-        header.appendChild(nameGroup);
-        header.appendChild(priceEl);
-
-        // Meta row
-        var meta = document.createElement('div');
-        meta.className = 'station-card-meta';
-
-        var suburbEl = document.createElement('span');
-        suburbEl.textContent = s.suburb;
-
-        var detourEl = document.createElement('span');
-        detourEl.textContent = (item.dist * 1000).toFixed(0) + 'm off route';
-
-        meta.appendChild(suburbEl);
-        meta.appendChild(detourEl);
-
-        card.appendChild(header);
-        card.appendChild(meta);
-
-        // Click to pan map
-        (function(station) {
-            card.addEventListener('click', function() {
-                map.panTo([station.lat, station.lng]);
-            });
-        })(s);
-
-        content.appendChild(card);
+        (function(item, rank) {
+            var s = item.station;
+            var ratio = (s.price - minP) / range;
+            var priceClass = ratio < 0.33 ? 'price-cheap' : ratio < 0.66 ? 'price-mid' : 'price-dear';
+            var card = makeStationCard(
+                s,
+                rank,
+                (item.dist * 1000).toFixed(0) + 'm off route',
+                priceClass,
+                function() { map.panTo([s.lat, s.lng]); }
+            );
+            content.appendChild(card);
+        })(corridor[i], i + 1);
     }
 }
 
@@ -820,7 +771,7 @@ function setupSortToggle() {
 }
 
 // ============================================================
-// Task 10: Brand Filter
+// Brand Filter
 // ============================================================
 
 function setupBrandFilter() {
@@ -829,20 +780,20 @@ function setupBrandFilter() {
     var closeBtn = document.getElementById('brandModalClose');
 
     btn.addEventListener('click', function() {
-        modal.classList.remove('hidden');
+        modal.hidden = false;
         btn.classList.add('active');
         populateBrandFilter();
     });
 
     closeBtn.addEventListener('click', function() {
-        modal.classList.add('hidden');
+        modal.hidden = true;
         btn.classList.remove('active');
     });
 
     // Click outside modal content closes it
     modal.addEventListener('click', function(e) {
         if (e.target === modal) {
-            modal.classList.add('hidden');
+            modal.hidden = true;
             btn.classList.remove('active');
         }
     });
@@ -851,7 +802,6 @@ function setupBrandFilter() {
 function populateBrandFilter() {
     var body = document.getElementById('brandModalBody');
 
-    // Clear using DOM methods
     while (body.firstChild) {
         body.removeChild(body.firstChild);
     }

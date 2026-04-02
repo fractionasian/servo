@@ -598,7 +598,88 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // ============================================================
-// Stub for later task
+// Task 10: Brand Filter
 // ============================================================
 
-function setupBrandFilter() {}
+function setupBrandFilter() {
+    var btn = document.getElementById('brandFilterBtn');
+    var dropdown = document.getElementById('brandDropdown');
+
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdown.hidden = !dropdown.hidden;
+        btn.classList.toggle('active', !dropdown.hidden);
+        if (!dropdown.hidden) {
+            populateBrandFilter();
+        }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.brand-filter-wrap')) {
+            dropdown.hidden = true;
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function populateBrandFilter() {
+    var dropdown = document.getElementById('brandDropdown');
+
+    // Clear using DOM methods
+    while (dropdown.firstChild) {
+        dropdown.removeChild(dropdown.firstChild);
+    }
+
+    if (!pricesData || !pricesData.fuel_types) return;
+
+    var stations = pricesData.fuel_types[activeFuel];
+    if (!stations) return;
+
+    // Collect unique brands for active fuel type
+    var brandsSeen = {};
+    var brands = [];
+    for (var i = 0; i < stations.length; i++) {
+        var slug = brandToSlug(stations[i].brand);
+        if (!brandsSeen[slug]) {
+            brandsSeen[slug] = true;
+            brands.push({ name: stations[i].brand, slug: slug });
+        }
+    }
+    brands.sort(function(a, b) { return a.name.localeCompare(b.name); });
+
+    for (var j = 0; j < brands.length; j++) {
+        (function(brand) {
+            var item = document.createElement('label');
+            item.className = 'brand-dropdown-item';
+
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !hiddenBrands.has(brand.slug);
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    hiddenBrands.delete(brand.slug);
+                } else {
+                    hiddenBrands.add(brand.slug);
+                }
+                renderMarkers();
+                if (routePoints) {
+                    updateCorridorFilter();
+                }
+            });
+
+            var logo = document.createElement('img');
+            logo.src = 'logos/' + brand.slug + '.svg';
+            logo.alt = '';
+            logo.style.cssText = 'width:16px;height:16px;flex-shrink:0;';
+            logo.onerror = function() { this.src = 'logos/default.svg'; };
+
+            var nameEl = document.createElement('span');
+            nameEl.textContent = brand.name;
+
+            item.appendChild(cb);
+            item.appendChild(logo);
+            item.appendChild(nameEl);
+            dropdown.appendChild(item);
+        })(brands[j]);
+    }
+}

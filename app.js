@@ -175,9 +175,170 @@ function setupFuelSelector() {
 }
 
 // ============================================================
+// Task 6: Route Panel + Suburb Autocomplete
+// ============================================================
+
+function getSavedLocations() {
+    try {
+        return JSON.parse(localStorage.getItem('servo-locations') || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
+function getSuburbList() {
+    if (!pricesData || !pricesData.fuel_types) return [];
+    var seen = {};
+    var result = [];
+    var fuelTypes = Object.keys(pricesData.fuel_types);
+    for (var f = 0; f < fuelTypes.length; f++) {
+        var stations = pricesData.fuel_types[fuelTypes[f]];
+        for (var i = 0; i < stations.length; i++) {
+            var s = stations[i];
+            var key = s.suburb.toLowerCase();
+            if (!seen[key]) {
+                seen[key] = true;
+                result.push({ name: s.suburb, lat: s.lat, lng: s.lng });
+            }
+        }
+    }
+    result.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    return result;
+}
+
+function clearDropdown(listEl) {
+    while (listEl.firstChild) {
+        listEl.removeChild(listEl.firstChild);
+    }
+}
+
+function showAutocomplete(input) {
+    var listId = input.id === 'fromInput' ? 'fromAutocomplete' : 'toAutocomplete';
+    var list = document.getElementById(listId);
+    var query = input.value.trim().toLowerCase();
+
+    clearDropdown(list);
+
+    if (!query) {
+        list.hidden = true;
+        return;
+    }
+
+    var results = [];
+
+    // Saved locations first (prefixed with pin)
+    var saved = getSavedLocations();
+    var savedKeys = Object.keys(saved);
+    for (var i = 0; i < savedKeys.length; i++) {
+        var k = savedKeys[i];
+        if (k.toLowerCase().indexOf(query) !== -1) {
+            results.push({ label: '\uD83D\uDCCC ' + k, lat: saved[k].lat, lng: saved[k].lng });
+        }
+    }
+
+    // Suburbs
+    var suburbs = getSuburbList();
+    for (var j = 0; j < suburbs.length; j++) {
+        var sub = suburbs[j];
+        if (sub.name.toLowerCase().indexOf(query) !== -1) {
+            results.push({ label: sub.name, lat: sub.lat, lng: sub.lng });
+        }
+    }
+
+    results = results.slice(0, 10);
+
+    if (results.length === 0) {
+        list.hidden = true;
+        return;
+    }
+
+    for (var r = 0; r < results.length; r++) {
+        (function(item) {
+            var el = document.createElement('div');
+            el.className = 'autocomplete-item';
+            el.textContent = item.label;
+            el.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                input.value = item.label.replace(/^\uD83D\uDCCC\s*/, '');
+                input.dataset.lat = item.lat;
+                input.dataset.lng = item.lng;
+                list.hidden = true;
+            });
+            list.appendChild(el);
+        })(results[r]);
+    }
+
+    list.hidden = false;
+}
+
+function setupRoutePanel() {
+    var toggleBtn = document.getElementById('routeToggleBtn');
+    var panel = document.getElementById('routePanel');
+    var fromInput = document.getElementById('fromInput');
+    var toInput = document.getElementById('toInput');
+    var locateBtn = document.getElementById('locateBtn');
+    var goBtn = document.getElementById('routeGoBtn');
+    var clearBtn = document.getElementById('routeClearBtn');
+    var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+
+    // Toggle panel visibility
+    toggleBtn.addEventListener('click', function() {
+        panel.hidden = !panel.hidden;
+        toggleBtn.classList.toggle('active', !panel.hidden);
+    });
+
+    // Autocomplete on input
+    fromInput.addEventListener('input', function() { showAutocomplete(fromInput); });
+    toInput.addEventListener('input', function() { showAutocomplete(toInput); });
+
+    // Close autocomplete on outside click
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.route-panel')) {
+            document.getElementById('fromAutocomplete').hidden = true;
+            document.getElementById('toAutocomplete').hidden = true;
+        }
+    });
+
+    // Geolocation button
+    locateBtn.addEventListener('click', function() {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            fromInput.value = 'My location';
+            fromInput.dataset.lat = pos.coords.latitude;
+            fromInput.dataset.lng = pos.coords.longitude;
+        }, function(err) {
+            console.warn('Geolocation error:', err.message);
+        });
+    });
+
+    // Go button
+    goBtn.addEventListener('click', function() {
+        var fromLat = parseFloat(fromInput.dataset.lat);
+        var fromLng = parseFloat(fromInput.dataset.lng);
+        var toLat = parseFloat(toInput.dataset.lat);
+        var toLng = parseFloat(toInput.dataset.lng);
+        if (isNaN(fromLat) || isNaN(fromLng) || isNaN(toLat) || isNaN(toLng)) return;
+        fetchRoute(fromLng, fromLat, toLng, toLat);
+    });
+
+    // Clear button
+    clearBtn.addEventListener('click', function() {
+        clearRoute();
+    });
+
+    // Sidebar close button
+    if (sidebarCloseBtn) {
+        sidebarCloseBtn.addEventListener('click', function() {
+            clearRoute();
+        });
+    }
+}
+
+// ============================================================
 // Stubs for later tasks
 // ============================================================
 
-function setupRoutePanel() {}
+function fetchRoute() {}
+function clearRoute() {}
 function setupBrandFilter() {}
 function updateCorridorFilter() {}

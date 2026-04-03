@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1d28" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Servo — Perth Fuel Prices</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>" />
 
@@ -14,16 +18,13 @@
 </head>
 <body>
 
-  <!-- Fuel + brand controls bar -->
+  <!-- Fuel controls bar -->
   <nav class="controls">
     <div class="fuel-buttons">
       <button class="fuel-btn active" data-fuel="ulp">ULP</button>
       <button class="fuel-btn" data-fuel="pulp">PULP</button>
       <button class="fuel-btn" data-fuel="98">98</button>
       <button class="fuel-btn" data-fuel="diesel">Diesel</button>
-    </div>
-    <div class="brand-filter-wrap">
-      <button class="brand-filter-btn" id="brandFilterBtn">Brands ▾</button>
     </div>
   </nav>
 
@@ -36,9 +37,6 @@
     <div class="legend-gradient"></div>
     <span>Most expensive</span>
   </div>
-
-  <!-- Cheapest near me button -->
-  <button class="nearby-btn" id="nearbyBtn" title="Cheapest near me">📍 Near me</button>
 
   <!-- Route toggle button (hidden for v1 — routing deferred) -->
   <button class="route-toggle-btn" id="routeToggleBtn" hidden>🧭 Route</button>
@@ -59,6 +57,21 @@
       <button class="route-go-btn" id="routeGoBtn">Go</button>
       <button class="route-clear-btn" id="routeClearBtn">Clear</button>
     </div>
+  </div>
+
+  <!-- FAB stack — bottom right, above zoom controls -->
+  <div class="fab-stack">
+    <button class="fab" id="brandFilterBtn" title="Filter brands">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+    </button>
+    <button class="fab" id="nearbyBtn" title="Cheapest near me">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+    </button>
   </div>
 
   <!-- Map -->

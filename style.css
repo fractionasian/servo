@@ -97,39 +97,7 @@ html, body {
   border-color: var(--accent);
 }
 
-/* Divider between fuel buttons and brand filter */
-.controls::after {
-  content: '';
-  display: block;
-  width: 1px;
-  height: 24px;
-  background: var(--border);
-  flex-shrink: 0;
-}
 
-/* ============================================================
-   Brand filter
-   ============================================================ */
-.brand-filter-wrap {
-  position: relative;
-}
-
-.brand-filter-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid transparent;
-  border-radius: 20px;
-  padding: 5px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: color var(--transition), background var(--transition);
-}
-
-.brand-filter-btn:hover,
-.brand-filter-btn.active {
-  color: var(--text);
-  background: var(--surface2);
-}
 
 /* Modal overlay — brand filter */
 .modal-overlay {
@@ -283,27 +251,6 @@ html, body {
   background: linear-gradient(to right, var(--green), var(--yellow), var(--red));
 }
 
-/* ============================================================
-   Cheapest near me button — top right, left of route toggle
-   ============================================================ */
-.nearby-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 500;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: background var(--transition);
-}
-
-.nearby-btn:hover { background: var(--surface2); }
 
 /* ============================================================
    Route panel — below toggle button, top right
@@ -768,6 +715,49 @@ html, body {
 
 .leaflet-control-zoom a:hover {
   background: var(--surface2) !important;
+}
+
+/* ============================================================
+   FAB stack — bottom right, above zoom controls
+   ============================================================ */
+.fab-stack {
+  position: absolute;
+  bottom: 90px;
+  right: 10px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fab {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+
+.fab:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.fab.active {
+  color: var(--accent);
+  background: rgba(74, 158, 255, 0.12);
+  border-color: var(--accent);
+}
+
+.fab.locating {
+  color: var(--accent);
 }
 
 /* ============================================================

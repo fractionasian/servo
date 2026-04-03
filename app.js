@@ -67,6 +67,12 @@ function init() {
 
     loadPrefs();
     loadPrices();
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(function(e) {
+            console.warn('SW registration failed:', e.message);
+        });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -291,12 +297,12 @@ function setupNearbyButton() {
     var btn = document.getElementById('nearbyBtn');
     btn.addEventListener('click', function() {
         if (!navigator.geolocation) return;
-        btn.textContent = '📍 Locating...';
+        btn.classList.add('locating');
         navigator.geolocation.getCurrentPosition(function(pos) {
-            btn.textContent = '📍 Near me';
+            btn.classList.remove('locating');
             showNearby(pos.coords.latitude, pos.coords.longitude);
         }, function() {
-            btn.textContent = '📍 Near me';
+            btn.classList.remove('locating');
         });
     });
 }

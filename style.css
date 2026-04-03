@@ -1,5 +1,5 @@
 /* ============================================================
-   CSS Variables — Flexoki-inspired dark palette
+   CSS Variables — dark palette (default)
    ============================================================ */
 :root {
   --bg:        #0f1117;
@@ -16,6 +16,28 @@
   --radius:    6px;
   --shadow:    0 4px 16px rgba(0, 0, 0, 0.5);
   --transition: 0.2s ease;
+  --surface-alpha: rgba(26, 29, 40, 0.85);
+}
+
+/* ============================================================
+   Light palette — auto day mode
+   ============================================================ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:        #f5f5f5;
+    --surface:   #ffffff;
+    --surface2:  #f0f0f0;
+    --surface3:  #e5e5e5;
+    --text:      #1a1a1a;
+    --text-dim:  #666;
+    --accent:    #2563eb;
+    --green:     #16a34a;
+    --yellow:    #ca8a04;
+    --red:       #dc2626;
+    --border:    #d4d4d4;
+    --shadow:    0 4px 16px rgba(0, 0, 0, 0.1);
+    --surface-alpha: rgba(255, 255, 255, 0.85);
+  }
 }
 
 /* ============================================================
@@ -214,7 +236,7 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
-  background: rgba(26, 29, 40, 0.85);
+  background: var(--surface-alpha);
   backdrop-filter: blur(4px);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -687,7 +709,7 @@ html, body {
   bottom: 28px;
   left: 12px;
   z-index: 500;
-  background: rgba(26, 29, 40, 0.85);
+  background: var(--surface-alpha);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 4px 12px;
@@ -706,28 +728,27 @@ html, body {
    ============================================================ */
 /* Voyager tiles are already warm and readable — no filter needed */
 
-/* Keep controls legible */
-.leaflet-control-zoom a {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-  border-color: var(--border) !important;
-}
-
-.leaflet-control-zoom a:hover {
-  background: var(--surface2) !important;
-}
+/* Hide default Leaflet zoom — replaced by FAB stack */
+.leaflet-control-zoom { display: none !important; }
 
 /* ============================================================
    FAB stack — bottom right, above zoom controls
    ============================================================ */
 .fab-stack {
   position: absolute;
-  bottom: 90px;
+  bottom: 28px;
   right: 10px;
   z-index: 500;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
+}
+
+.fab-divider {
+  width: 20px;
+  height: 1px;
+  background: var(--border);
 }
 
 .fab {

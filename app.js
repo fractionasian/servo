@@ -5,6 +5,9 @@ var NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 var CORRIDOR_RADIUS_KM = 2;
 var PERTH_CENTER = [-31.95, 115.86];
 var DEFAULT_ZOOM = 11;
+var DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+var LIGHT_TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+var TILE_ATTR = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
 
 // State
 var map = null;
@@ -21,6 +24,7 @@ var BRANDS_WITH_PNG = new Set([
 ]);
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
+var tileLayer = null;
 
 // Persistence — restore user preferences from localStorage
 function savePrefs() {
@@ -48,11 +52,9 @@ var _suburbListCache = null;
 // Init
 function init() {
     map = L.map('map', { zoomControl: false }).setView(PERTH_CENTER, DEFAULT_ZOOM);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-        maxZoom: 19,
-    }).addTo(map);
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    setTileLayer();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setTileLayer);
+    setupZoomButtons();
 
     var renderTimer = null;
     map.on('zoomend moveend', function() {
@@ -76,6 +78,31 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ============================================================
+// Tile layer — auto day/night
+// ============================================================
+
+function isDarkMode() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function setTileLayer() {
+    var url = isDarkMode() ? DARK_TILES : LIGHT_TILES;
+    if (tileLayer) map.removeLayer(tileLayer);
+    tileLayer = L.tileLayer(url, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(map);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = isDarkMode() ? '#1a1d28' : '#ffffff';
+}
+
+// ============================================================
+// Zoom buttons
+// ============================================================
+
+function setupZoomButtons() {
+    document.getElementById('zoomInBtn').addEventListener('click', function() { map.zoomIn(); });
+    document.getElementById('zoomOutBtn').addEventListener('click', function() { map.zoomOut(); });
+}
 
 // ============================================================
 // Data loading

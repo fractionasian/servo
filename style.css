@@ -560,9 +560,9 @@ html, body {
 .price-marker {
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 3px 8px;
-  font-size: 11px;
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -572,7 +572,7 @@ html, body {
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 
@@ -583,18 +583,19 @@ html, body {
 
 /* Zoom-adaptive marker tiers */
 .price-dot {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  box-shadow: 0 0 3px rgba(0,0,0,0.5);
+  border: 1.5px solid var(--surface);
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
 }
 
 .price-pill {
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: 10px;
-  padding: 1px 5px;
-  font-size: 10px;
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;

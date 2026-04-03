@@ -171,8 +171,8 @@ function renderMarkers() {
     }
     visible.sort(function(a, b) { return a.price - b.price; });
 
-    // Collision culling — 40px grid, cheapest station wins each cell
-    var cellSize = currentZoom <= 12 ? 20 : 40;
+    // Collision culling — grid sized per zoom tier
+    var cellSize = currentZoom <= 11 ? 24 : currentZoom <= 13 ? 48 : 56;
     var occupiedCells = {};
 
     for (var j = 0; j < visible.length; j++) {
@@ -190,31 +190,31 @@ function renderMarkers() {
 
         // Zoom-adaptive marker HTML
         var html;
-        if (currentZoom <= 12) {
+        if (currentZoom <= 11) {
             html = '<div class="price-dot" style="background:' + colour + '"></div>';
-        } else if (currentZoom <= 14) {
+        } else if (currentZoom <= 13) {
             var logoSrc = brandLogoSrc(slug);
             html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="' + logoSrc + '" width="14" height="14" alt="" onerror="this.style.display=\'none\'">' +
+                '<img src="' + logoSrc + '" width="18" height="18" alt="" onerror="this.style.display=\'none\'">' +
                 '<span>' + priceText + '</span></div>';
         } else {
             var logoSrc = brandLogoSrc(slug);
             html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="' + logoSrc + '" width="20" height="20" alt="" onerror="this.style.display=\'none\'">' +
+                '<img src="' + logoSrc + '" width="24" height="24" alt="" onerror="this.style.display=\'none\'">' +
                 '<span>' + priceText + '</span>' +
                 '</div>';
         }
 
         var iconOpts = { html: html, className: '' };
-        if (currentZoom <= 12) {
-            iconOpts.iconSize = [8, 8];
-            iconOpts.iconAnchor = [4, 4];
-        } else if (currentZoom <= 14) {
+        if (currentZoom <= 11) {
+            iconOpts.iconSize = [12, 12];
+            iconOpts.iconAnchor = [6, 6];
+        } else if (currentZoom <= 13) {
             iconOpts.iconSize = null;
-            iconOpts.iconAnchor = [0, 8];
+            iconOpts.iconAnchor = [0, 10];
         } else {
             iconOpts.iconSize = null;
-            iconOpts.iconAnchor = [0, 12];
+            iconOpts.iconAnchor = [0, 14];
         }
         var icon = L.divIcon(iconOpts);
 

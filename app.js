@@ -84,6 +84,7 @@ function init() {
 
     loadPrefs();
     setupKeyboardShortcuts();
+    setupSidebarBodyClassSync();
     loadPrices();
     loadHistory();
 
@@ -119,6 +120,17 @@ function setTileLayer() {
 function setupZoomButtons() {
     document.getElementById('zoomInBtn').addEventListener('click', function() { map.zoomIn(); });
     document.getElementById('zoomOutBtn').addEventListener('click', function() { map.zoomOut(); });
+}
+
+// Mirror the sidebar's hidden state onto <body class="sheet-open"> so mobile
+// CSS can lift the FAB stack above the bottom sheet. MutationObserver means
+// every callsite that sets sidebar.hidden stays unchanged.
+function setupSidebarBodyClassSync() {
+    var sidebar = document.getElementById('sidebar');
+    if (!sidebar || typeof MutationObserver === 'undefined') return;
+    var sync = function() { document.body.classList.toggle('sheet-open', !sidebar.hidden); };
+    new MutationObserver(sync).observe(sidebar, { attributes: true, attributeFilter: ['hidden'] });
+    sync();
 }
 
 // ============================================================
@@ -572,12 +584,14 @@ function showNearby(lat, lng) {
     if (routePanel) routePanel.hidden = true;
     if (routeToggleBtn) routeToggleBtn.classList.remove('active');
 
+    var NEARBY_RADIUS_KM = 10;
+    var NEARBY_LIMIT = 5;
     var stations = stationsFor(activeFuel);
     var nearby = [];
     var hiddenBrandsCount = 0;
     for (var i = 0; i < stations.length; i++) {
         var d = haversine(lat, lng, stations[i].lat, stations[i].lng);
-        if (d > 5) continue;
+        if (d > NEARBY_RADIUS_KM) continue;
         if (hiddenBrands.has(brandToSlug(stations[i].brand))) {
             hiddenBrandsCount++;
             continue;
@@ -585,10 +599,10 @@ function showNearby(lat, lng) {
         nearby.push({ station: stations[i], dist: d });
     }
     nearby.sort(function(a, b) { return a.station.price - b.station.price; });
-    nearby = nearby.slice(0, 5);
+    nearby = nearby.slice(0, NEARBY_LIMIT);
 
     if (routePoints) clearRoute();
-    renderNearbySidebar(nearby, hiddenBrandsCount);
+    renderNearbySidebar(nearby, hiddenBrandsCount, NEARBY_RADIUS_KM);
     map.setView([lat, lng], 14);
 }
 
@@ -655,10 +669,16 @@ function emptyMessage(text) {
     return msg;
 }
 
-function renderNearbySidebar(nearby, hiddenBrandsCount) {
+function renderNearbySidebar(nearby, hiddenBrandsCount, radiusKm) {
     var sidebar = document.getElementById('sidebar');
     var titleEl = document.getElementById('sidebarTitle');
-    titleEl.textContent = 'Cheapest near you';
+    while (titleEl.firstChild) titleEl.removeChild(titleEl.firstChild);
+    titleEl.appendChild(document.createTextNode('Cheapest near you'));
+    var sub = document.createElement('span');
+    sub.className = 'sidebar-subtitle';
+    sub.textContent = ' · within ' + radiusKm + ' km';
+    titleEl.appendChild(sub);
+
     var content = document.getElementById('sidebarContent');
     while (content.firstChild) content.removeChild(content.firstChild);
 
@@ -668,7 +688,7 @@ function renderNearbySidebar(nearby, hiddenBrandsCount) {
                 'All ' + hiddenBrandsCount + ' nearby station(s) are filtered out by your brand filter.'
             ));
         } else {
-            content.appendChild(emptyMessage('No stations within 5km.'));
+            content.appendChild(emptyMessage('No stations within ' + radiusKm + ' km.'));
         }
         sidebar.hidden = false;
         return;

@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Servo — Perth Fuel Prices</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛽</text></svg>" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%231a1d28'/><text x='50%' y='58%' text-anchor='middle' font-size='130'>⛽</text></svg>" />
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,12 +20,12 @@
 <body>
 
   <!-- Fuel controls bar -->
-  <nav class="controls">
+  <nav class="controls" role="tablist" aria-label="Fuel type">
     <div class="fuel-buttons">
-      <button class="fuel-btn active" data-fuel="ulp">ULP</button>
-      <button class="fuel-btn" data-fuel="pulp">PULP</button>
-      <button class="fuel-btn" data-fuel="98">98</button>
-      <button class="fuel-btn" data-fuel="diesel">Diesel</button>
+      <button class="fuel-btn active" data-fuel="ulp"    role="tab" aria-pressed="true"  aria-label="Unleaded (press 1)">ULP</button>
+      <button class="fuel-btn"        data-fuel="pulp"   role="tab" aria-pressed="false" aria-label="Premium unleaded 95 (press 2)">PULP</button>
+      <button class="fuel-btn"        data-fuel="98"     role="tab" aria-pressed="false" aria-label="Premium 98 (press 3)">98</button>
+      <button class="fuel-btn"        data-fuel="diesel" role="tab" aria-pressed="false" aria-label="Diesel (press 4)">Diesel</button>
     </div>
   </nav>
 
@@ -61,25 +62,25 @@
 
   <!-- FAB stack — bottom right -->
   <div class="fab-stack">
-    <button class="fab" id="brandFilterBtn" title="Filter brands">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="fab" id="brandFilterBtn" title="Filter brands (B)" aria-label="Filter brands">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
       </svg>
     </button>
-    <button class="fab" id="nearbyBtn" title="Cheapest near me">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="fab" id="nearbyBtn" title="Cheapest near me (F)" aria-label="Find cheapest stations near me">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3"/>
         <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
       </svg>
     </button>
     <div class="fab-divider"></div>
-    <button class="fab" id="zoomInBtn" title="Zoom in">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="fab" id="zoomInBtn" title="Zoom in" aria-label="Zoom in">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
     </button>
-    <button class="fab" id="zoomOutBtn" title="Zoom out">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="fab" id="zoomOutBtn" title="Zoom out" aria-label="Zoom out">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
     </button>
@@ -89,7 +90,7 @@
   <div id="map"></div>
 
   <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar" hidden>
+  <aside class="sidebar is-animatable" id="sidebar" hidden>
     <div class="sidebar-header">
       <span id="sidebarTitle">On your route</span>
       <div class="sidebar-controls">

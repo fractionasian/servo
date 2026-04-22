@@ -1,10 +1,14 @@
 // Config
 var PRICES_URL = 'data/prices.json';
+var HISTORY_URL = 'data/history.json';
 var OSRM_URL = 'https://router.project-osrm.org/route/v1/driving/';
 var NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 var CORRIDOR_RADIUS_KM = 2;
 var PERTH_CENTER = [-31.95, 115.86];
 var DEFAULT_ZOOM = 11;
+var FETCH_TIMEOUT_MS = 10000;
+var FUEL_ORDER = ['ulp', 'pulp', '98', 'diesel'];
+var FUEL_LABEL = { ulp: 'ULP', pulp: 'PULP', '98': '98', diesel: 'Diesel' };
 var DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 var LIGHT_TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 var TILE_ATTR = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
@@ -12,6 +16,7 @@ var TILE_ATTR = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="h
 // State
 var map = null;
 var pricesData = null;
+var historyData = null;
 var activeFuel = 'ulp';
 var markers = [];
 var routeLine = null;
@@ -25,31 +30,37 @@ var BRANDS_WITH_PNG = new Set([
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
 var tileLayer = null;
+var lastCorridor = [];
+var locationMarker = null;
+var corridorCache = null;
+var _suburbListCache = null;
+var _stationsByFuelCache = {};
+var _lastRenderKey = null;
 
-// Persistence — restore user preferences from localStorage
+// ============================================================
+// Persistence
+// ============================================================
+
 function savePrefs() {
     try {
         localStorage.setItem('servo-fuel', activeFuel);
         localStorage.setItem('servo-hidden-brands', JSON.stringify(Array.from(hiddenBrands)));
     } catch (e) {}
 }
+
 function loadPrefs() {
     try {
         var fuel = localStorage.getItem('servo-fuel');
-        if (fuel) activeFuel = fuel;
+        if (fuel && FUEL_ORDER.indexOf(fuel) !== -1) activeFuel = fuel;
         var hidden = localStorage.getItem('servo-hidden-brands');
-        if (hidden) {
-            var arr = JSON.parse(hidden);
-            hiddenBrands = new Set(arr);
-        }
+        if (hidden) hiddenBrands = new Set(JSON.parse(hidden));
     } catch (e) {}
 }
-var lastCorridor = [];
-var locationMarker = null;
-var corridorCache = null;
-var _suburbListCache = null;
 
+// ============================================================
 // Init
+// ============================================================
+
 function init() {
     map = L.map('map', { zoomControl: false }).setView(PERTH_CENTER, DEFAULT_ZOOM);
     setTileLayer();
@@ -68,7 +79,9 @@ function init() {
     });
 
     loadPrefs();
+    setupKeyboardShortcuts();
     loadPrices();
+    loadHistory();
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(function(e) {
@@ -95,24 +108,44 @@ function setTileLayer() {
     if (meta) meta.content = isDarkMode() ? '#1a1d28' : '#ffffff';
 }
 
-// ============================================================
-// Zoom buttons
-// ============================================================
-
 function setupZoomButtons() {
     document.getElementById('zoomInBtn').addEventListener('click', function() { map.zoomIn(); });
     document.getElementById('zoomOutBtn').addEventListener('click', function() { map.zoomOut(); });
 }
 
 // ============================================================
-// Data loading
+// Data loading — with timeout, loading + error states
 // ============================================================
 
+function fetchWithTimeout(url, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var opts = ctrl ? { signal: ctrl.signal } : {};
+    var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, ms);
+    return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
+function setBadge(text, kind) {
+    var badge = document.getElementById('updateBadge');
+    if (!badge) return;
+    badge.textContent = text || '';
+    badge.className = 'update-badge' + (kind ? ' ' + kind : '');
+}
+
 function loadPrices() {
-    fetch(PRICES_URL)
-        .then(function(r) { return r.json(); })
+    setBadge('Loading prices…', 'loading');
+    fetchWithTimeout(PRICES_URL, FETCH_TIMEOUT_MS)
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
         .then(function(data) {
+            if (!data || !data.stations || !data.prices) {
+                throw new Error('Invalid prices data');
+            }
             pricesData = data;
+            _stationsByFuelCache = {};
+            _suburbListCache = null;
+            validateActiveFuel();
             renderMarkers();
             showUpdateBadge();
             setupFuelSelector();
@@ -123,15 +156,74 @@ function loadPrices() {
         })
         .catch(function(err) {
             console.error('Failed to load prices:', err);
+            setBadge('Could not load prices — check connection.', 'error');
         });
 }
 
+function loadHistory() {
+    fetchWithTimeout(HISTORY_URL, FETCH_TIMEOUT_MS)
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) { historyData = data; })
+        .catch(function() { historyData = null; });
+}
+
+function validateActiveFuel() {
+    if (!pricesData || !pricesData.prices || !pricesData.prices[activeFuel]) {
+        activeFuel = 'ulp';
+    }
+}
+
+function relativeTime(iso) {
+    var then = new Date(iso).getTime();
+    if (isNaN(then)) return '';
+    var diffMin = Math.round((Date.now() - then) / 60000);
+    if (diffMin < 1)   return 'just now';
+    if (diffMin < 60)  return diffMin + ' min ago';
+    var diffH = Math.round(diffMin / 60);
+    if (diffH < 24)    return diffH + ' hr ago';
+    var diffD = Math.round(diffH / 24);
+    if (diffD < 7)     return diffD + ' day' + (diffD === 1 ? '' : 's') + ' ago';
+    return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+
 function showUpdateBadge() {
-    var badge = document.getElementById('updateBadge');
-    if (!badge || !pricesData || !pricesData.updated) return;
-    var d = new Date(pricesData.updated);
-    var opts = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
-    badge.textContent = 'Updated ' + d.toLocaleString('en-AU', opts);
+    if (!pricesData || !pricesData.updated) return;
+    setBadge('Updated ' + relativeTime(pricesData.updated), '');
+}
+
+// ============================================================
+// Station access — unified for new normalised schema
+// ============================================================
+
+function stationsFor(fuel) {
+    if (_stationsByFuelCache[fuel]) return _stationsByFuelCache[fuel];
+    if (!pricesData || !pricesData.prices || !pricesData.prices[fuel]) return [];
+    var priceMap = pricesData.prices[fuel];
+    var stations = pricesData.stations;
+    var result = [];
+    for (var i = 0; i < stations.length; i++) {
+        var s = stations[i];
+        var p = priceMap[s.id];
+        if (p == null) continue;
+        result.push({
+            id:      s.id,
+            station: s.name,
+            brand:   s.brand,
+            address: s.address,
+            suburb:  s.suburb,
+            lat:     s.lat,
+            lng:     s.lng,
+            price:   p,
+        });
+    }
+    _stationsByFuelCache[fuel] = result;
+    return result;
+}
+
+function priceFor(fuel, id) {
+    if (!pricesData || !pricesData.prices || !pricesData.prices[fuel]) return null;
+    var p = pricesData.prices[fuel][id];
+    return p == null ? null : p;
 }
 
 // ============================================================
@@ -139,29 +231,32 @@ function showUpdateBadge() {
 // ============================================================
 
 function clearMarkers() {
-    for (var i = 0; i < markers.length; i++) {
-        map.removeLayer(markers[i]);
-    }
+    for (var i = 0; i < markers.length; i++) map.removeLayer(markers[i]);
     markers = [];
 }
 
+function zoomTier(z) {
+    if (z <= 11) return 'dot';
+    if (z <= 13) return 'pill';
+    return 'full';
+}
+
 function renderMarkers() {
-    clearMarkers();
-    if (!pricesData || !pricesData.fuel_types) return;
+    if (!pricesData) return;
+    var stations = stationsFor(activeFuel);
+    if (stations.length === 0) { clearMarkers(); updatePriceSummary(); return; }
 
-    var stations = pricesData.fuel_types[activeFuel];
-    if (!stations || stations.length === 0) return;
-
-    // Calculate min/max for colour ratio
     var prices = stations.map(function(s) { return s.price; });
     var minP = Math.min.apply(null, prices);
     var maxP = Math.max.apply(null, prices);
     var range = maxP - minP || 1;
 
-    // Viewport culling — only render within current bounds + 10% buffer
     var bounds = map.getBounds().pad(0.1);
+    var tier = zoomTier(currentZoom);
 
-    // Filter to visible, non-hidden stations sorted cheapest first (for collision culling)
+    // Collision culling — grid sized per zoom tier
+    var cellSize = tier === 'dot' ? 24 : tier === 'pill' ? 48 : 56;
+
     var visible = [];
     for (var i = 0; i < stations.length; i++) {
         var s = stations[i];
@@ -171,71 +266,137 @@ function renderMarkers() {
     }
     visible.sort(function(a, b) { return a.price - b.price; });
 
-    // Collision culling — grid sized per zoom tier
-    var cellSize = currentZoom <= 11 ? 24 : currentZoom <= 13 ? 48 : 56;
     var occupiedCells = {};
-
+    var kept = [];
     for (var j = 0; j < visible.length; j++) {
-        var s = visible[j];
-        var slug = brandToSlug(s.brand);
-        var ratio = (s.price - minP) / range;
+        var st = visible[j];
+        var px = map.latLngToContainerPoint([st.lat, st.lng]);
+        var key = Math.floor(px.x / cellSize) + ',' + Math.floor(px.y / cellSize);
+        if (occupiedCells[key]) continue;
+        occupiedCells[key] = true;
+        kept.push(st);
+    }
+
+    // Skip full rebuild if visible set + tier are identical to last render
+    var renderKey = tier + ':' + activeFuel + ':' + kept.map(function(s) { return s.id; }).join(',');
+    if (renderKey === _lastRenderKey) {
+        updatePriceSummary();
+        return;
+    }
+    _lastRenderKey = renderKey;
+
+    clearMarkers();
+
+    for (var k = 0; k < kept.length; k++) {
+        var sk = kept[k];
+        var ratio = (sk.price - minP) / range;
         var colour = priceColour(ratio);
-        var priceText = s.price.toFixed(1);
-
-        // Collision check
-        var px = map.latLngToContainerPoint([s.lat, s.lng]);
-        var cellKey = Math.floor(px.x / cellSize) + ',' + Math.floor(px.y / cellSize);
-        if (occupiedCells[cellKey]) continue;
-        occupiedCells[cellKey] = true;
-
-        // Zoom-adaptive marker HTML
-        var html;
-        if (currentZoom <= 11) {
-            html = '<div class="price-dot" style="background:' + colour + '"></div>';
-        } else if (currentZoom <= 13) {
-            var logoSrc = brandLogoSrc(slug);
-            html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="' + logoSrc + '" width="18" height="18" alt="" onerror="this.style.display=\'none\'">' +
-                '<span>' + priceText + '</span></div>';
-        } else {
-            var logoSrc = brandLogoSrc(slug);
-            html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
-                '<img src="' + logoSrc + '" width="24" height="24" alt="" onerror="this.style.display=\'none\'">' +
-                '<span>' + priceText + '</span>' +
-                '</div>';
-        }
-
-        var iconOpts = { html: html, className: '' };
-        if (currentZoom <= 11) {
-            iconOpts.iconSize = [12, 12];
-            iconOpts.iconAnchor = [6, 6];
-        } else if (currentZoom <= 13) {
-            iconOpts.iconSize = null;
-            iconOpts.iconAnchor = [0, 10];
-        } else {
-            iconOpts.iconSize = null;
-            iconOpts.iconAnchor = [0, 14];
-        }
-        var icon = L.divIcon(iconOpts);
-
-        var marker = L.marker([s.lat, s.lng], { icon: icon });
-        marker._servoStation = s;
-
-        var directionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
-        var popupHtml = '<div class="popup-name">' + escapeHtml(s.station) + '</div>' +
-            '<div class="popup-brand">' + escapeHtml(s.brand) + '</div>' +
-            '<div class="popup-prices">' +
-            '<span class="popup-price-chip active-fuel">' + activeFuel.toUpperCase() + ' ' + priceText + 'c</span>' +
-            '</div>' +
-            '<div class="popup-address">' + escapeHtml(s.address) + ', ' + escapeHtml(s.suburb) + '</div>' +
-            '<a class="popup-directions" href="' + directionsUrl + '" target="_blank" rel="noopener">Directions ↗</a>';
-
-        marker.bindPopup(popupHtml);
+        var marker = buildMarker(sk, tier, colour);
         marker.addTo(map);
         markers.push(marker);
     }
 
     updatePriceSummary();
+}
+
+function buildMarker(s, tier, colour) {
+    var slug = brandToSlug(s.brand);
+    var priceText = s.price.toFixed(1);
+    var logoSrc = brandLogoSrc(slug);
+    var html, iconOpts = { className: '' };
+
+    if (tier === 'dot') {
+        html = '<div class="price-dot" style="background:' + colour + '"></div>';
+        iconOpts.iconSize = [12, 12];
+        iconOpts.iconAnchor = [6, 6];
+    } else if (tier === 'pill') {
+        html = '<div class="price-pill" style="border-color:' + colour + ';color:' + colour + '">' +
+            '<img src="' + logoSrc + '" width="18" height="18" alt="" onerror="this.style.display=\'none\'">' +
+            '<span>' + priceText + '</span></div>';
+        iconOpts.iconSize = null;
+        iconOpts.iconAnchor = [0, 10];
+    } else {
+        html = '<div class="price-marker" style="border-color:' + colour + ';color:' + colour + '">' +
+            '<img src="' + logoSrc + '" width="24" height="24" alt="" onerror="this.style.display=\'none\'">' +
+            '<span>' + priceText + '</span></div>';
+        iconOpts.iconSize = null;
+        iconOpts.iconAnchor = [0, 14];
+    }
+    iconOpts.html = html;
+
+    var marker = L.marker([s.lat, s.lng], { icon: L.divIcon(iconOpts) });
+    marker._servoStation = s;
+    marker.bindPopup(buildPopupHtml(s), { maxWidth: 300, minWidth: 220 });
+    return marker;
+}
+
+function buildPopupHtml(s) {
+    var directionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
+    var chips = '';
+    for (var i = 0; i < FUEL_ORDER.length; i++) {
+        var f = FUEL_ORDER[i];
+        var p = priceFor(f, s.id);
+        if (p == null) continue;
+        var cls = 'popup-price-chip' + (f === activeFuel ? ' active-fuel' : '');
+        chips += '<span class="' + cls + '"><strong>' + FUEL_LABEL[f] + '</strong> ' + p.toFixed(1) + 'c</span>';
+    }
+    var delta = historyDeltaChip(s.id, activeFuel);
+    var spark = sparklineSvg(s.id, activeFuel);
+    return '<div class="popup-name">' + escapeHtml(s.station) + '</div>' +
+        '<div class="popup-brand">' + escapeHtml(s.brand) + '</div>' +
+        '<div class="popup-prices">' + chips + '</div>' +
+        (delta || spark ? '<div class="popup-trend">' + delta + spark + '</div>' : '') +
+        '<div class="popup-address">' + escapeHtml(s.address) + ', ' + escapeHtml(s.suburb) + '</div>' +
+        '<a class="popup-directions" href="' + directionsUrl + '" target="_blank" rel="noopener">Directions ↗</a>';
+}
+
+// ============================================================
+// History: 7-day sparkline + delta chip
+// ============================================================
+
+function historySeries(id, fuel) {
+    if (!historyData || !historyData.prices || !historyData.prices[fuel]) return null;
+    var series = historyData.prices[fuel][id];
+    return Array.isArray(series) && series.length ? series : null;
+}
+
+function historyDeltaChip(id, fuel) {
+    var series = historySeries(id, fuel);
+    if (!series || series.length < 2) return '';
+    var current = series[series.length - 1];
+    var previous = null;
+    for (var i = series.length - 2; i >= 0; i--) {
+        if (series[i] != null) { previous = series[i]; break; }
+    }
+    if (current == null || previous == null) return '';
+    var diff = current - previous;
+    if (Math.abs(diff) < 0.05) return '<span class="popup-delta flat">— unchanged</span>';
+    var cls = diff > 0 ? 'up' : 'down';
+    var arrow = diff > 0 ? '▲' : '▼';
+    return '<span class="popup-delta ' + cls + '">' + arrow + ' ' + Math.abs(diff).toFixed(1) + 'c vs yesterday</span>';
+}
+
+function sparklineSvg(id, fuel) {
+    var series = historySeries(id, fuel);
+    if (!series || series.length < 3) return '';
+    var points = [];
+    for (var i = 0; i < series.length; i++) {
+        if (series[i] != null) points.push({ i: i, v: series[i] });
+    }
+    if (points.length < 2) return '';
+    var vs = points.map(function(p) { return p.v; });
+    var minV = Math.min.apply(null, vs);
+    var maxV = Math.max.apply(null, vs);
+    var range = maxV - minV || 1;
+    var W = 90, H = 22, PAD = 2;
+    var n = series.length - 1 || 1;
+    var d = points.map(function(p, idx) {
+        var x = PAD + (p.i / n) * (W - PAD * 2);
+        var y = PAD + (1 - (p.v - minV) / range) * (H - PAD * 2);
+        return (idx === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return '<svg class="popup-spark" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+        '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 
 // ============================================================
@@ -245,9 +406,8 @@ function renderMarkers() {
 function updatePriceSummary() {
     var el = document.getElementById('priceSummary');
     if (!el) return;
-    if (!pricesData || !pricesData.fuel_types) { el.textContent = ''; return; }
-    var stations = pricesData.fuel_types[activeFuel];
-    if (!stations || stations.length === 0) { el.textContent = ''; return; }
+    var stations = stationsFor(activeFuel);
+    if (stations.length === 0) { el.textContent = ''; return; }
     var prices = stations.map(function(s) { return s.price; });
     var min = Math.min.apply(null, prices);
     var max = Math.max.apply(null, prices);
@@ -257,20 +417,18 @@ function updatePriceSummary() {
 
 function escapeHtml(str) {
     var d = document.createElement('div');
-    d.textContent = str;
+    d.textContent = str || '';
     return d.innerHTML;
 }
 
 function priceColour(ratio) {
     var r, g, b;
     if (ratio < 0.5) {
-        // green(34,197,94) → yellow(234,179,8)
         var t = ratio * 2;
         r = Math.round(34  + t * (234 - 34));
         g = Math.round(197 + t * (179 - 197));
         b = Math.round(94  + t * (8   - 94));
     } else {
-        // yellow(234,179,8) → red(239,68,68)
         var t = (ratio - 0.5) * 2;
         r = Math.round(234 + t * (239 - 234));
         g = Math.round(179 + t * (68  - 179));
@@ -280,7 +438,7 @@ function priceColour(ratio) {
 }
 
 function brandToSlug(brand) {
-    return brand.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return (brand || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function brandLogoSrc(slug) {
@@ -291,28 +449,28 @@ function brandLogoSrc(slug) {
 // Fuel Type Selector
 // ============================================================
 
+function setActiveFuel(fuel) {
+    if (fuel === activeFuel || FUEL_ORDER.indexOf(fuel) === -1) return;
+    activeFuel = fuel;
+    savePrefs();
+    var btns = document.querySelectorAll('[data-fuel]');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].dataset.fuel === fuel);
+        btns[i].setAttribute('aria-pressed', btns[i].dataset.fuel === fuel ? 'true' : 'false');
+    }
+    _lastRenderKey = null;
+    renderMarkers();
+    if (routePoints) updateCorridorFilter();
+}
+
 function setupFuelSelector() {
     var buttons = document.querySelectorAll('[data-fuel]');
-    // Restore saved fuel selection
     for (var i = 0; i < buttons.length; i++) {
-        if (buttons[i].dataset.fuel === activeFuel) {
-            buttons[i].classList.add('active');
-        } else {
-            buttons[i].classList.remove('active');
-        }
-        buttons[i].addEventListener('click', function() {
-            var btns = document.querySelectorAll('[data-fuel]');
-            for (var j = 0; j < btns.length; j++) {
-                btns[j].classList.remove('active');
-            }
-            this.classList.add('active');
-            activeFuel = this.dataset.fuel;
-            savePrefs();
-            renderMarkers();
-            if (routePoints) {
-                updateCorridorFilter();
-            }
-        });
+        var btn = buttons[i];
+        var isActive = btn.dataset.fuel === activeFuel;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        btn.addEventListener('click', function() { setActiveFuel(this.dataset.fuel); });
     }
 }
 
@@ -322,67 +480,74 @@ function setupFuelSelector() {
 
 function setupNearbyButton() {
     var btn = document.getElementById('nearbyBtn');
-    btn.addEventListener('click', function() {
-        if (!navigator.geolocation) return;
-        btn.classList.add('locating');
-        navigator.geolocation.getCurrentPosition(function(pos) {
-            btn.classList.remove('locating');
-            showNearby(pos.coords.latitude, pos.coords.longitude);
-        }, function() {
-            btn.classList.remove('locating');
-        });
+    btn.addEventListener('click', findNearby);
+}
+
+function findNearby() {
+    if (!navigator.geolocation) return;
+    var btn = document.getElementById('nearbyBtn');
+    btn.classList.add('locating');
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        btn.classList.remove('locating');
+        showNearby(pos.coords.latitude, pos.coords.longitude);
+    }, function() {
+        btn.classList.remove('locating');
     });
 }
 
 function showNearby(lat, lng) {
     if (!pricesData) return;
-    // Show blue dot at current location
     if (locationMarker) map.removeLayer(locationMarker);
     locationMarker = L.circleMarker([lat, lng], {
         radius: 8, color: '#fff', weight: 2,
         fillColor: '#4a9eff', fillOpacity: 1
     }).addTo(map).bindTooltip('You are here', { direction: 'top', offset: [0, -10] });
-    // Auto-close route panel if open
+
     var routePanel = document.getElementById('routePanel');
     var routeToggleBtn = document.getElementById('routeToggleBtn');
     if (routePanel) routePanel.hidden = true;
     if (routeToggleBtn) routeToggleBtn.classList.remove('active');
-    var stations = pricesData.fuel_types[activeFuel] || [];
+
+    var stations = stationsFor(activeFuel);
     var nearby = [];
+    var hiddenBrandsCount = 0;
     for (var i = 0; i < stations.length; i++) {
-        var slug = brandToSlug(stations[i].brand);
-        if (hiddenBrands.has(slug)) continue;
         var d = haversine(lat, lng, stations[i].lat, stations[i].lng);
-        if (d <= 5) {
-            nearby.push({ station: stations[i], dist: d });
+        if (d > 5) continue;
+        if (hiddenBrands.has(brandToSlug(stations[i].brand))) {
+            hiddenBrandsCount++;
+            continue;
         }
+        nearby.push({ station: stations[i], dist: d });
     }
     nearby.sort(function(a, b) { return a.station.price - b.station.price; });
     nearby = nearby.slice(0, 5);
 
     if (routePoints) clearRoute();
-    renderNearbySidebar(nearby);
+    renderNearbySidebar(nearby, hiddenBrandsCount);
     map.setView([lat, lng], 14);
 }
 
 function makeStationCard(station, rank, metaText, priceClass, clickFn) {
     var card = document.createElement('div');
     card.className = 'station-card';
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
 
     var header = document.createElement('div');
     header.className = 'station-card-header';
 
     var nameGroup = document.createElement('div');
-    nameGroup.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;flex:1;';
+    nameGroup.className = 'station-card-namegroup';
 
     var rankSpan = document.createElement('span');
-    rankSpan.style.cssText = 'font-size:11px;color:var(--text-dim);flex-shrink:0;';
+    rankSpan.className = 'station-card-rank';
     rankSpan.textContent = String(rank);
 
     var logo = document.createElement('img');
     logo.src = brandLogoSrc(brandToSlug(station.brand));
     logo.alt = '';
-    logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
+    logo.className = 'station-card-logo';
     logo.onerror = function() { this.style.display = 'none'; };
 
     var nameEl = document.createElement('span');
@@ -412,11 +577,21 @@ function makeStationCard(station, rank, metaText, priceClass, clickFn) {
     card.appendChild(header);
     card.appendChild(meta);
     card.addEventListener('click', clickFn);
+    card.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clickFn(); }
+    });
 
     return card;
 }
 
-function renderNearbySidebar(nearby) {
+function emptyMessage(text) {
+    var msg = document.createElement('div');
+    msg.className = 'sidebar-empty';
+    msg.textContent = text;
+    return msg;
+}
+
+function renderNearbySidebar(nearby, hiddenBrandsCount) {
     var sidebar = document.getElementById('sidebar');
     var titleEl = document.getElementById('sidebarTitle');
     titleEl.textContent = 'Cheapest near you';
@@ -424,10 +599,13 @@ function renderNearbySidebar(nearby) {
     while (content.firstChild) content.removeChild(content.firstChild);
 
     if (nearby.length === 0) {
-        var msg = document.createElement('div');
-        msg.style.cssText = 'padding:16px;color:var(--text-dim);font-size:13px;';
-        msg.textContent = 'No stations within 5km.';
-        content.appendChild(msg);
+        if (hiddenBrandsCount > 0) {
+            content.appendChild(emptyMessage(
+                'All ' + hiddenBrandsCount + ' nearby station(s) are filtered out by your brand filter.'
+            ));
+        } else {
+            content.appendChild(emptyMessage('No stations within 5km.'));
+        }
         sidebar.hidden = false;
         return;
     }
@@ -448,63 +626,117 @@ function renderNearbySidebar(nearby) {
 }
 
 // ============================================================
-// Route Panel + Suburb Autocomplete
+// Route Panel + Suburb/Station/Address Autocomplete
 // ============================================================
 
 function getSuburbList() {
     if (_suburbListCache) return _suburbListCache;
-    if (!pricesData || !pricesData.fuel_types) return [];
+    if (!pricesData || !pricesData.stations) return [];
     var seen = {};
     var result = [];
-    var fuelTypes = Object.keys(pricesData.fuel_types);
-    for (var f = 0; f < fuelTypes.length; f++) {
-        var stations = pricesData.fuel_types[fuelTypes[f]];
-        for (var i = 0; i < stations.length; i++) {
-            var s = stations[i];
-            var key = s.suburb.toLowerCase();
-            if (!seen[key]) {
-                seen[key] = true;
-                result.push({ name: s.suburb, lat: s.lat, lng: s.lng });
-            }
+    for (var i = 0; i < pricesData.stations.length; i++) {
+        var s = pricesData.stations[i];
+        var key = (s.suburb || '').toLowerCase();
+        if (key && !seen[key]) {
+            seen[key] = true;
+            result.push({ type: 'suburb', label: s.suburb, lat: s.lat, lng: s.lng });
         }
     }
-    result.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    result.sort(function(a, b) { return a.label.localeCompare(b.label); });
     _suburbListCache = result;
     return result;
 }
 
-function clearDropdown(listEl) {
-    while (listEl.firstChild) {
-        listEl.removeChild(listEl.firstChild);
+function localAutocompleteMatches(query) {
+    var q = query.toLowerCase();
+    var results = [];
+    var seenKeys = {};
+
+    function push(item, key) {
+        if (seenKeys[key]) return;
+        seenKeys[key] = true;
+        results.push(item);
     }
+
+    // Suburbs — highest priority
+    var suburbs = getSuburbList();
+    for (var i = 0; i < suburbs.length && results.length < 10; i++) {
+        if (suburbs[i].label.toLowerCase().indexOf(q) !== -1) {
+            push(suburbs[i], 'sub:' + suburbs[i].label.toLowerCase());
+        }
+    }
+
+    // Stations — name or address
+    if (pricesData && pricesData.stations) {
+        for (var j = 0; j < pricesData.stations.length && results.length < 15; j++) {
+            var s = pricesData.stations[j];
+            var hay = ((s.name || '') + ' ' + (s.address || '') + ' ' + (s.suburb || '')).toLowerCase();
+            if (hay.indexOf(q) !== -1) {
+                push({
+                    type:  'station',
+                    label: s.name + ' — ' + s.suburb,
+                    sub:   s.address,
+                    lat:   s.lat,
+                    lng:   s.lng,
+                }, 'stn:' + s.id);
+            }
+        }
+    }
+
+    return results.slice(0, 10);
+}
+
+var _nominatimTimers = {};
+
+function nominatimFallback(input, list, query) {
+    if (_nominatimTimers[input.id]) clearTimeout(_nominatimTimers[input.id]);
+    _nominatimTimers[input.id] = setTimeout(function() {
+        var url = NOMINATIM_URL + '?format=json&limit=5&countrycodes=au&viewbox=115.5,-31.5,116.3,-32.3&bounded=1&q=' + encodeURIComponent(query);
+        fetchWithTimeout(url, 5000)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (input.value.trim().toLowerCase() !== query) return; // stale
+                if (!data || data.length === 0) return;
+                if (list.querySelector('.autocomplete-item')) return; // local hits already shown
+                clearDropdown(list);
+                for (var i = 0; i < data.length; i++) {
+                    (function(d) {
+                        var el = document.createElement('div');
+                        el.className = 'autocomplete-item';
+                        el.textContent = d.display_name.split(',').slice(0, 2).join(', ');
+                        el.addEventListener('mousedown', function(e) {
+                            e.preventDefault();
+                            input.value = el.textContent;
+                            input.dataset.lat = d.lat;
+                            input.dataset.lng = d.lon;
+                            list.hidden = true;
+                        });
+                        list.appendChild(el);
+                    })(data[i]);
+                }
+                list.hidden = false;
+            })
+            .catch(function() {});
+    }, 300);
+}
+
+function clearDropdown(listEl) {
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
 }
 
 function showAutocomplete(input) {
     var listId = input.id === 'fromInput' ? 'fromAutocomplete' : 'toAutocomplete';
     var list = document.getElementById(listId);
     var query = input.value.trim().toLowerCase();
-
     clearDropdown(list);
 
-    if (!query) {
-        list.hidden = true;
-        return;
-    }
+    if (!query) { list.hidden = true; return; }
 
-    var results = [];
-
-    var suburbs = getSuburbList();
-    for (var j = 0; j < suburbs.length; j++) {
-        var sub = suburbs[j];
-        if (sub.name.toLowerCase().indexOf(query) !== -1) {
-            results.push({ label: sub.name, lat: sub.lat, lng: sub.lng });
-        }
-    }
-
-    results = results.slice(0, 10);
+    var results = localAutocompleteMatches(query);
 
     if (results.length === 0) {
         list.hidden = true;
+        nominatimFallback(input, list, query);
         return;
     }
 
@@ -512,7 +744,15 @@ function showAutocomplete(input) {
         (function(item) {
             var el = document.createElement('div');
             el.className = 'autocomplete-item';
-            el.textContent = item.label;
+            var main = document.createElement('div');
+            main.textContent = item.label;
+            el.appendChild(main);
+            if (item.sub) {
+                var sub = document.createElement('div');
+                sub.className = 'autocomplete-sub';
+                sub.textContent = item.sub;
+                el.appendChild(sub);
+            }
             el.addEventListener('mousedown', function(e) {
                 e.preventDefault();
                 input.value = item.label;
@@ -523,7 +763,6 @@ function showAutocomplete(input) {
             list.appendChild(el);
         })(results[r]);
     }
-
     list.hidden = false;
 }
 
@@ -537,17 +776,14 @@ function setupRoutePanel() {
     var clearBtn = document.getElementById('routeClearBtn');
     var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
 
-    // Toggle panel visibility
     toggleBtn.addEventListener('click', function() {
         panel.hidden = !panel.hidden;
         toggleBtn.classList.toggle('active', !panel.hidden);
     });
 
-    // Autocomplete on input
     fromInput.addEventListener('input', function() { showAutocomplete(fromInput); });
     toInput.addEventListener('input', function() { showAutocomplete(toInput); });
 
-    // Close autocomplete on outside click
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.route-panel')) {
             document.getElementById('fromAutocomplete').hidden = true;
@@ -555,7 +791,6 @@ function setupRoutePanel() {
         }
     });
 
-    // Geolocation button
     locateBtn.addEventListener('click', function() {
         if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(function(pos) {
@@ -567,7 +802,6 @@ function setupRoutePanel() {
         });
     });
 
-    // Go button
     goBtn.addEventListener('click', function() {
         var fromLat = parseFloat(fromInput.dataset.lat);
         var fromLng = parseFloat(fromInput.dataset.lng);
@@ -577,17 +811,14 @@ function setupRoutePanel() {
         fetchRoute(fromLng, fromLat, toLng, toLat);
     });
 
-    // Clear button
-    clearBtn.addEventListener('click', function() {
-        clearRoute();
-    });
+    clearBtn.addEventListener('click', clearRoute);
+    if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeSidebar);
+}
 
-    // Sidebar close button
-    if (sidebarCloseBtn) {
-        sidebarCloseBtn.addEventListener('click', function() {
-            clearRoute();
-        });
-    }
+function closeSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    sidebar.hidden = true;
+    if (routePoints) clearRoute(true);
 }
 
 // ============================================================
@@ -597,7 +828,7 @@ function setupRoutePanel() {
 function fetchRoute(fromLng, fromLat, toLng, toLat) {
     var url = OSRM_URL + fromLng + ',' + fromLat + ';' + toLng + ',' + toLat +
               '?overview=simplified&geometries=polyline';
-    return fetch(url)
+    return fetchWithTimeout(url, FETCH_TIMEOUT_MS)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.routes || data.routes.length === 0) {
@@ -608,76 +839,53 @@ function fetchRoute(fromLng, fromLat, toLng, toLat) {
             drawRoute();
             updateCorridorFilter();
         })
-        .catch(function(err) {
-            console.error('OSRM fetch error:', err);
-        });
+        .catch(function(err) { console.error('OSRM fetch error:', err); });
 }
 
 function drawRoute() {
-    if (routeLine) {
-        map.removeLayer(routeLine);
-        routeLine = null;
-    }
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
     if (!routePoints || routePoints.length === 0) return;
-    routeLine = L.polyline(routePoints, {
-        color: '#4a9eff',
-        weight: 4,
-        opacity: 0.8
-    }).addTo(map);
+    routeLine = L.polyline(routePoints, { color: '#4a9eff', weight: 4, opacity: 0.8 }).addTo(map);
     map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
 }
 
-function clearRoute() {
-    if (routeLine) {
-        map.removeLayer(routeLine);
-        routeLine = null;
-    }
-    if (locationMarker) {
-        map.removeLayer(locationMarker);
-        locationMarker = null;
-    }
+function clearRoute(keepLocationMarker) {
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    if (!keepLocationMarker && locationMarker) { map.removeLayer(locationMarker); locationMarker = null; }
     routePoints = null;
     corridorCache = null;
     var sidebar = document.getElementById('sidebar');
     sidebar.hidden = true;
     var titleEl = document.getElementById('sidebarTitle');
     if (titleEl) titleEl.textContent = 'On your route';
-    // Remove dimmed class from all markers
     for (var i = 0; i < markers.length; i++) {
         var el = markers[i].getElement();
-        if (el) {
-            var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
-            if (inner) inner.classList.remove('dimmed');
-        }
+        if (!el) continue;
+        var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
+        if (inner) inner.classList.remove('dimmed');
     }
 }
 
 function decodePolyline(encoded) {
     var result = [];
-    var index = 0;
-    var lat = 0;
-    var lng = 0;
+    var index = 0, lat = 0, lng = 0;
     while (index < encoded.length) {
         var b, shift, result_val;
-        shift = 0;
-        result_val = 0;
+        shift = 0; result_val = 0;
         do {
             b = encoded.charCodeAt(index++) - 63;
             result_val |= (b & 0x1f) << shift;
             shift += 5;
         } while (b >= 0x20);
-        var dlat = (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
-        lat += dlat;
+        lat += (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
 
-        shift = 0;
-        result_val = 0;
+        shift = 0; result_val = 0;
         do {
             b = encoded.charCodeAt(index++) - 63;
             result_val |= (b & 0x1f) << shift;
             shift += 5;
         } while (b >= 0x20);
-        var dlng = (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
-        lng += dlng;
+        lng += (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
 
         result.push([lat / 1e5, lng / 1e5]);
     }
@@ -689,34 +897,23 @@ function decodePolyline(encoded) {
 // ============================================================
 
 function updateCorridorFilter() {
-    if (!routePoints || !pricesData || !pricesData.fuel_types) return;
-
-    var stations = pricesData.fuel_types[activeFuel];
-    if (!stations) return;
+    if (!routePoints || !pricesData) return;
+    var stations = stationsFor(activeFuel);
+    if (stations.length === 0) return;
 
     var corridor = [];
     for (var i = 0; i < stations.length; i++) {
         var s = stations[i];
-        var slug = brandToSlug(s.brand);
-        if (hiddenBrands.has(slug)) continue;
+        if (hiddenBrands.has(brandToSlug(s.brand))) continue;
         var dist = minDistToRoute(s.lat, s.lng, routePoints);
-        if (dist <= CORRIDOR_RADIUS_KM) {
-            corridor.push({ station: s, dist: dist });
-        }
+        if (dist <= CORRIDOR_RADIUS_KM) corridor.push({ station: s, dist: dist });
     }
 
-    // Cache corridor results — only recomputed when route/fuel/brands change
     corridorCache = corridor.slice();
-
-    // Store for sort toggle re-renders
     lastCorridor = corridor.slice();
 
-    // Sort by price or distance depending on toggle state
-    if (corridorSortByDist) {
-        corridor.sort(function(a, b) { return a.dist - b.dist; });
-    } else {
-        corridor.sort(function(a, b) { return a.station.price - b.station.price; });
-    }
+    if (corridorSortByDist) corridor.sort(function(a, b) { return a.dist - b.dist; });
+    else                    corridor.sort(function(a, b) { return a.station.price - b.station.price; });
 
     applyCorridorDimming();
     renderSidebar(corridor);
@@ -724,40 +921,26 @@ function updateCorridorFilter() {
 
 function applyCorridorDimming() {
     if (!corridorCache) return;
-
-    // O(n) lookup with Set
     var corridorSet = new Set();
-    for (var c = 0; c < corridorCache.length; c++) {
-        corridorSet.add(corridorCache[c].station);
-    }
-
+    for (var c = 0; c < corridorCache.length; c++) corridorSet.add(corridorCache[c].station.id);
     for (var j = 0; j < markers.length; j++) {
         var m = markers[j];
-        var ms = m._servoStation;
         var el = m.getElement();
         if (!el) continue;
         var inner = el.querySelector('.price-marker, .price-pill, .price-dot');
         if (!inner) continue;
-
-        if (corridorSet.has(ms)) {
-            inner.classList.remove('dimmed');
-        } else {
-            inner.classList.add('dimmed');
-        }
+        inner.classList.toggle('dimmed', !corridorSet.has(m._servoStation.id));
     }
 }
 
 function renderSidebar(corridor) {
     var sidebar = document.getElementById('sidebar');
     var content = document.getElementById('sidebarContent');
-
-    while (content.firstChild) {
-        content.removeChild(content.firstChild);
-    }
+    while (content.firstChild) content.removeChild(content.firstChild);
 
     if (!corridor || corridor.length === 0) {
         sidebar.hidden = true;
-        return;
+            return;
     }
 
     sidebar.hidden = false;
@@ -773,8 +956,7 @@ function renderSidebar(corridor) {
             var ratio = (s.price - minP) / range;
             var priceClass = ratio < 0.33 ? 'price-cheap' : ratio < 0.66 ? 'price-mid' : 'price-dear';
             var card = makeStationCard(
-                s,
-                rank,
+                s, rank,
                 (item.dist * 1000).toFixed(0) + 'm off route',
                 priceClass,
                 function() { map.panTo([s.lat, s.lng]); }
@@ -794,7 +976,6 @@ function minDistToRoute(lat, lng, route) {
 }
 
 function pointToSegmentDist(px, py, ax, ay, bx, by) {
-    // Equirectangular approximation: scale longitude differences by cos(lat)
     var cosLat = Math.cos((ax + bx) / 2 * Math.PI / 180);
     var dx = (bx - ax) * cosLat;
     var dy = by - ay;
@@ -833,11 +1014,8 @@ function setupSortToggle() {
         this.textContent = corridorSortByDist ? '↕ Distance' : '↕ Price';
         if (lastCorridor.length > 0) {
             var sorted = lastCorridor.slice();
-            if (corridorSortByDist) {
-                sorted.sort(function(a, b) { return a.dist - b.dist; });
-            } else {
-                sorted.sort(function(a, b) { return a.station.price - b.station.price; });
-            }
+            if (corridorSortByDist) sorted.sort(function(a, b) { return a.dist - b.dist; });
+            else                    sorted.sort(function(a, b) { return a.station.price - b.station.price; });
             renderSidebar(sorted);
         }
     });
@@ -863,7 +1041,6 @@ function setupBrandFilter() {
         btn.classList.remove('active');
     });
 
-    // Click outside modal content closes it
     modal.addEventListener('click', function(e) {
         if (e.target === modal) {
             modal.hidden = true;
@@ -874,29 +1051,23 @@ function setupBrandFilter() {
 
 function populateBrandFilter() {
     var body = document.getElementById('brandModalBody');
+    while (body.firstChild) body.removeChild(body.firstChild);
+    if (!pricesData || !pricesData.stations) return;
 
-    while (body.firstChild) {
-        body.removeChild(body.firstChild);
-    }
-
-    if (!pricesData || !pricesData.fuel_types) return;
-
-    var stations = pricesData.fuel_types[activeFuel];
-    if (!stations) return;
-
-    // Collect unique brands for active fuel type
+    var priceMap = pricesData.prices[activeFuel] || {};
     var brandsSeen = {};
     var brands = [];
-    for (var i = 0; i < stations.length; i++) {
-        var slug = brandToSlug(stations[i].brand);
+    for (var i = 0; i < pricesData.stations.length; i++) {
+        var s = pricesData.stations[i];
+        if (priceMap[s.id] == null) continue; // only brands that sell active fuel
+        var slug = brandToSlug(s.brand);
         if (!brandsSeen[slug]) {
             brandsSeen[slug] = true;
-            brands.push({ name: stations[i].brand, slug: slug });
+            brands.push({ name: s.brand, slug: slug });
         }
     }
     brands.sort(function(a, b) { return a.name.localeCompare(b.name); });
 
-    // Select all / Deselect all buttons
     var actions = document.createElement('div');
     actions.className = 'brand-modal-actions';
     var selectAllBtn = document.createElement('button');
@@ -906,6 +1077,7 @@ function populateBrandFilter() {
         hiddenBrands.clear();
         savePrefs();
         populateBrandFilter();
+        _lastRenderKey = null;
         renderMarkers();
         if (routePoints) updateCorridorFilter();
     });
@@ -916,6 +1088,7 @@ function populateBrandFilter() {
         for (var b = 0; b < brands.length; b++) hiddenBrands.add(brands[b].slug);
         savePrefs();
         populateBrandFilter();
+        _lastRenderKey = null;
         renderMarkers();
         if (routePoints) updateCorridorFilter();
     });
@@ -932,22 +1105,18 @@ function populateBrandFilter() {
             cb.type = 'checkbox';
             cb.checked = !hiddenBrands.has(brand.slug);
             cb.addEventListener('change', function() {
-                if (this.checked) {
-                    hiddenBrands.delete(brand.slug);
-                } else {
-                    hiddenBrands.add(brand.slug);
-                }
+                if (this.checked) hiddenBrands.delete(brand.slug);
+                else              hiddenBrands.add(brand.slug);
                 savePrefs();
+                _lastRenderKey = null;
                 renderMarkers();
-                if (routePoints) {
-                    updateCorridorFilter();
-                }
+                if (routePoints) updateCorridorFilter();
             });
 
             var logo = document.createElement('img');
             logo.src = brandLogoSrc(brand.slug);
             logo.alt = '';
-            logo.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
+            logo.className = 'brand-dropdown-logo';
             logo.onerror = function() { this.style.display = 'none'; };
 
             var nameEl = document.createElement('span');
@@ -959,4 +1128,42 @@ function populateBrandFilter() {
             body.appendChild(item);
         })(brands[j]);
     }
+}
+
+// ============================================================
+// Keyboard shortcuts — 1/2/3/4 fuels, F find, B brands, Esc close
+// ============================================================
+
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        var tag = (document.activeElement && document.activeElement.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+        switch (e.key) {
+            case '1': setActiveFuel('ulp'); break;
+            case '2': setActiveFuel('pulp'); break;
+            case '3': setActiveFuel('98'); break;
+            case '4': setActiveFuel('diesel'); break;
+            case 'f': case 'F': findNearby(); break;
+            case 'b': case 'B': document.getElementById('brandFilterBtn').click(); break;
+            case 'Escape':
+                var modal = document.getElementById('brandModal');
+                if (modal && !modal.hidden) {
+                    modal.hidden = true;
+                    document.getElementById('brandFilterBtn').classList.remove('active');
+                    return;
+                }
+                var sidebar = document.getElementById('sidebar');
+                if (sidebar && !sidebar.hidden) { closeSidebar(); return; }
+                var panel = document.getElementById('routePanel');
+                if (panel && !panel.hidden) {
+                    panel.hidden = true;
+                    var t = document.getElementById('routeToggleBtn');
+                    if (t) t.classList.remove('active');
+                }
+                break;
+            default: return;
+        }
+    });
 }

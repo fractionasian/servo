@@ -49,7 +49,15 @@
   padding: 0;
 }
 
-[hidden] { display: none !important; }
+/* Hide everything with [hidden] — except elements marked .is-animatable,
+   which handle their own hidden-state transition via a CSS rule below. */
+[hidden]:not(.is-animatable) { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 html, body {
   height: 100%;
@@ -71,11 +79,11 @@ html, body {
 }
 
 /* ============================================================
-   Controls bar — centred at top
+   Controls bar — centred at top (respects safe-area)
    ============================================================ */
 .controls {
   position: absolute;
-  top: 12px;
+  top: calc(12px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -88,6 +96,7 @@ html, body {
   padding: 8px 14px;
   box-shadow: var(--shadow);
   white-space: nowrap;
+  max-width: calc(100vw - 24px);
 }
 
 /* Fuel type buttons */
@@ -232,7 +241,7 @@ html, body {
    ============================================================ */
 .price-summary {
   position: absolute;
-  top: 56px;
+  top: calc(56px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -243,6 +252,9 @@ html, body {
   padding: 4px 14px;
   font-size: 13px;
   color: var(--text-dim);
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -254,7 +266,7 @@ html, body {
    ============================================================ */
 .colour-legend {
   position: absolute;
-  top: 84px;
+  top: calc(84px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -279,8 +291,8 @@ html, body {
    ============================================================ */
 .route-panel {
   position: absolute;
-  top: 54px;
-  right: 12px;
+  top: calc(54px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
   z-index: 500;
   width: 300px;
   background: var(--surface);
@@ -428,19 +440,18 @@ html, body {
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
-  transform: translateX(100%);
-  transition: transform 0.25s ease;
-}
-
-.sidebar:not([hidden]) {
   transform: translateX(0);
-  display: flex;
+  transition: transform 0.25s ease;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* .is-animatable opts out of the global [hidden] display:none,
+   so we can slide the sidebar off-screen instead of snapping it away. */
 .sidebar[hidden] {
-  /* Override HTML hidden so the transition still works */
   display: flex;
   transform: translateX(100%);
+  pointer-events: none;
 }
 
 .sidebar-header {
@@ -588,6 +599,25 @@ html, body {
   border-radius: 50%;
   border: 1.5px solid var(--surface);
   box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+/* Expand tap target to ~40px without visually enlarging the dot */
+.price-dot::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+}
+
+.price-pill {
+  position: relative;
+}
+
+.price-pill::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
 }
 
 .price-pill {
@@ -686,20 +716,106 @@ html, body {
 }
 
 .popup-directions {
-  display: inline-block;
+  display: block;
   margin-top: 10px;
-  padding: 5px 12px;
-  background: var(--accent);
+  padding: 8px 14px;
+  background: #2563eb;
   color: #fff;
   border-radius: var(--radius);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   text-decoration: none;
-  transition: filter var(--transition);
+  text-align: center;
+  transition: background var(--transition);
+  white-space: nowrap;
 }
 
 .popup-directions:hover {
-  filter: brightness(1.15);
+  background: #1d4ed8;
+}
+
+/* Trend row inside popup — delta chip + sparkline */
+.popup-trend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--text-dim);
+}
+
+.popup-delta {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface2);
+}
+
+.popup-delta.up   { color: var(--red); }
+.popup-delta.down { color: var(--green); }
+.popup-delta.flat { color: var(--text-dim); }
+
+.popup-spark {
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+/* Popup price chips — show all fuels */
+.popup-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.popup-price-chip strong {
+  font-weight: 600;
+  margin-right: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* Sidebar empty state */
+.sidebar-empty {
+  padding: 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Station card sub-parts (extracted from inline styles) */
+.station-card-namegroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.station-card-rank {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  min-width: 14px;
+}
+
+.station-card-logo {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* Autocomplete sub-line (station address) */
+.autocomplete-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Brand dropdown logo (extracted from inline styles) */
+.brand-dropdown-logo {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 /* ============================================================
@@ -707,8 +823,8 @@ html, body {
    ============================================================ */
 .update-badge {
   position: absolute;
-  bottom: 28px;
-  left: 12px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: calc(12px + env(safe-area-inset-left));
   z-index: 500;
   background: var(--surface-alpha);
   border: 1px solid var(--border);
@@ -718,10 +834,27 @@ html, body {
   color: var(--text-dim);
   backdrop-filter: blur(4px);
   pointer-events: none;
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.update-badge:empty {
-  display: none;
+.update-badge:empty { display: none; }
+
+.update-badge.loading {
+  color: var(--accent);
+  animation: badge-pulse 1.4s ease-in-out infinite;
+}
+
+.update-badge.error {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 
 /* ============================================================
@@ -737,8 +870,8 @@ html, body {
    ============================================================ */
 .fab-stack {
   position: absolute;
-  bottom: 28px;
-  right: 10px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  right: calc(10px + env(safe-area-inset-right));
   z-index: 500;
   display: flex;
   flex-direction: column;

@@ -103,23 +103,49 @@ def test_parse_rss_empty_feed():
 # ---------------------------------------------------------------------------
 
 def test_build_prices_json_structure():
+    morley = {'station': 'BP Morley', 'brand': 'BP', 'address': '1 Rd',
+              'suburb': 'Morley', 'price': 1.799, 'lat': -31.9, 'lng': 115.9}
     fuel_data = {
-        'ulp': [
-            {'station': 'BP Morley', 'brand': 'BP', 'address': '1 Rd',
-             'suburb': 'Morley', 'price': 1.799, 'lat': -31.9, 'lng': 115.9}
-        ],
+        'ulp':    [morley],
         'diesel': [],
-        'pulp': [],
-        '98': [],
+        'pulp':   [],
+        '98':     [],
     }
     result = fetch_prices.build_prices_json(fuel_data)
     parsed = json.loads(result)
 
     assert 'updated' in parsed
-    assert 'fuel_types' in parsed
-    assert set(parsed['fuel_types'].keys()) == {'ulp', 'diesel', 'pulp', '98'}
-    assert len(parsed['fuel_types']['ulp']) == 1
-    assert parsed['fuel_types']['ulp'][0]['station'] == 'BP Morley'
+    assert 'stations' in parsed
+    assert 'prices' in parsed
+    assert set(parsed['prices'].keys()) == {'ulp', 'diesel', 'pulp', '98'}
+    assert len(parsed['stations']) == 1
+    station = parsed['stations'][0]
+    assert station['name'] == 'BP Morley'
+    assert station['id'] == fetch_prices.station_id(-31.9, 115.9)
+    assert parsed['prices']['ulp'][station['id']] == 1.799
+
+
+def test_build_prices_json_dedupes_across_fuels():
+    """A station appearing in multiple fuel types should be stored once."""
+    coords = {'lat': -32.0, 'lng': 115.8}
+    s_ulp    = {'station': 'Shell X', 'brand': 'Shell', 'address': '2 Rd',
+                'suburb': 'Perth', 'price': 1.799, **coords}
+    s_diesel = {'station': 'Shell X', 'brand': 'Shell', 'address': '2 Rd',
+                'suburb': 'Perth', 'price': 1.899, **coords}
+    result = fetch_prices.build_prices_json({
+        'ulp': [s_ulp], 'diesel': [s_diesel], 'pulp': [], '98': [],
+    })
+    parsed = json.loads(result)
+    assert len(parsed['stations']) == 1
+    sid = parsed['stations'][0]['id']
+    assert parsed['prices']['ulp'][sid] == 1.799
+    assert parsed['prices']['diesel'][sid] == 1.899
+
+
+def test_station_id_stable_across_precision():
+    """Coord-based id rounds to 5 decimals so tiny float wobble is absorbed."""
+    assert fetch_prices.station_id(-31.900001, 115.900002) == \
+           fetch_prices.station_id(-31.900003, 115.900001)
 
 
 def test_build_prices_json_timestamp_format():

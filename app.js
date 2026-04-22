@@ -9,8 +9,11 @@ var DEFAULT_ZOOM = 11;
 var FETCH_TIMEOUT_MS = 10000;
 var FUEL_ORDER = ['ulp', 'pulp', '98', 'diesel'];
 var FUEL_LABEL = { ulp: 'ULP', pulp: 'PULP', '98': '98', diesel: 'Diesel' };
-var DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-var LIGHT_TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+// Greyscale basemaps — price markers become the only saturated thing on screen.
+var DARK_TILES  = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+var DARK_LABELS = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
+var LIGHT_TILES  = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
+var LIGHT_LABELS = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
 var TILE_ATTR = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>';
 
 // State
@@ -30,6 +33,7 @@ var BRANDS_WITH_PNG = new Set([
 var currentZoom = DEFAULT_ZOOM;
 var corridorSortByDist = false;
 var tileLayer = null;
+var labelLayer = null;
 var lastCorridor = [];
 var locationMarker = null;
 var corridorCache = null;
@@ -101,11 +105,15 @@ function isDarkMode() {
 }
 
 function setTileLayer() {
-    var url = isDarkMode() ? DARK_TILES : LIGHT_TILES;
-    if (tileLayer) map.removeLayer(tileLayer);
-    tileLayer = L.tileLayer(url, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(map);
+    var dark = isDarkMode();
+    var base = dark ? DARK_TILES : LIGHT_TILES;
+    var labels = dark ? DARK_LABELS : LIGHT_LABELS;
+    if (tileLayer)  map.removeLayer(tileLayer);
+    if (labelLayer) map.removeLayer(labelLayer);
+    tileLayer  = L.tileLayer(base,   { attribution: TILE_ATTR, maxZoom: 19 }).addTo(map);
+    labelLayer = L.tileLayer(labels, { attribution: '', maxZoom: 19, pane: 'shadowPane' }).addTo(map);
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = isDarkMode() ? '#1a1d28' : '#ffffff';
+    if (meta) meta.content = dark ? '#0f1117' : '#ffffff';
 }
 
 function setupZoomButtons() {
@@ -332,22 +340,47 @@ function buildMarker(s, tier, colour) {
 
 function buildPopupHtml(s) {
     var directionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lng;
+    var slug = brandToSlug(s.brand);
+    var activePrice = priceFor(activeFuel, s.id);
+
+    // HERO — the one number the user came for
+    var hero = '';
+    if (activePrice != null) {
+        hero = '<div class="popup-hero">' +
+            '<span class="popup-hero-fuel">' + FUEL_LABEL[activeFuel] + '</span>' +
+            '<span class="popup-hero-price">' + fmtPrice(activePrice) + '</span>' +
+          '</div>';
+    }
+
+    // IDENTITY — logo + name + address+suburb
+    var identity = '<div class="popup-id">' +
+        '<span class="popup-logo-frame"><img src="' + brandLogoSrc(slug) + '" alt="" onerror="this.style.display=\'none\'"></span>' +
+        '<div class="popup-id-text">' +
+          '<div class="popup-name">' + escapeHtml(s.station) + '</div>' +
+          '<div class="popup-meta">' + escapeHtml(s.address) + ' · ' + escapeHtml(s.suburb) + '</div>' +
+        '</div>' +
+      '</div>';
+
+    // OTHER FUELS — secondary chips
     var chips = '';
     for (var i = 0; i < FUEL_ORDER.length; i++) {
         var f = FUEL_ORDER[i];
+        if (f === activeFuel) continue;
         var p = priceFor(f, s.id);
         if (p == null) continue;
-        var cls = 'popup-price-chip' + (f === activeFuel ? ' active-fuel' : '');
-        chips += '<span class="' + cls + '"><strong>' + FUEL_LABEL[f] + '</strong> ' + fmtPrice(p) + '</span>';
+        chips += '<span class="popup-price-chip"><strong>' + FUEL_LABEL[f] + '</strong> ' + fmtPrice(p) + '</span>';
     }
+    var chipsBlock = chips ? '<div class="popup-chips">' + chips + '</div>' : '';
+
+    // TREND — delta + sparkline
     var delta = historyDeltaChip(s.id, activeFuel);
     var spark = sparklineSvg(s.id, activeFuel);
-    return '<div class="popup-name">' + escapeHtml(s.station) + '</div>' +
-        '<div class="popup-brand">' + escapeHtml(s.brand) + '</div>' +
-        '<div class="popup-prices">' + chips + '</div>' +
-        (delta || spark ? '<div class="popup-trend">' + delta + spark + '</div>' : '') +
-        '<div class="popup-address">' + escapeHtml(s.address) + ', ' + escapeHtml(s.suburb) + '</div>' +
-        '<a class="popup-directions" href="' + directionsUrl + '" target="_blank" rel="noopener">Directions ↗</a>';
+    var trendBlock = (delta || spark) ? '<div class="popup-trend">' + delta + spark + '</div>' : '';
+
+    // PRIMARY ACTION
+    var cta = '<a class="popup-directions" href="' + directionsUrl + '" target="_blank" rel="noopener">Directions ↗</a>';
+
+    return hero + identity + chipsBlock + trendBlock + cta;
 }
 
 // ============================================================

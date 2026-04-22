@@ -19,7 +19,7 @@
 </head>
 <body>
 
-  <!-- Fuel controls bar -->
+  <!-- Unified top card: fuel tabs + summary stat strip -->
   <nav class="controls" role="tablist" aria-label="Fuel type">
     <div class="fuel-buttons">
       <button class="fuel-btn active" data-fuel="ulp"    role="tab" aria-pressed="true"  aria-label="Unleaded (press 1)">ULP</button>
@@ -27,17 +27,8 @@
       <button class="fuel-btn"        data-fuel="98"     role="tab" aria-pressed="false" aria-label="Premium 98 (press 3)">98</button>
       <button class="fuel-btn"        data-fuel="diesel" role="tab" aria-pressed="false" aria-label="Diesel (press 4)">Diesel</button>
     </div>
+    <div class="price-summary" id="priceSummary"></div>
   </nav>
-
-  <!-- Price summary bar -->
-  <div class="price-summary" id="priceSummary"></div>
-
-  <!-- Colour legend -->
-  <div class="colour-legend" id="colourLegend">
-    <span>Cheapest</span>
-    <div class="legend-gradient"></div>
-    <span>Most expensive</span>
-  </div>
 
   <!-- Route toggle button (hidden for v1 — routing deferred) -->
   <button class="route-toggle-btn" id="routeToggleBtn" hidden>🧭 Route</button>

@@ -470,7 +470,8 @@ function updatePriceSummary() {
     var min = Math.min.apply(null, prices);
     var max = Math.max.apply(null, prices);
     var avg = prices.reduce(function(a, b) { return a + b; }, 0) / prices.length;
-    el.textContent = fmtPrice(min) + ' – ' + fmtPrice(max) + ' · avg ' + fmtPrice(avg) + ' · ' + stations.length + ' stations';
+    // Share the ¢ across the range — tighter and easier to scan.
+    el.textContent = min.toFixed(1) + ' – ' + max.toFixed(1) + ' ¢ · avg ' + avg.toFixed(1) + ' ¢ · ' + stations.length + ' stations';
 }
 
 function escapeHtml(str) {
@@ -481,7 +482,7 @@ function escapeHtml(str) {
 
 // Consistent price formatting: "199.9 ¢" — narrow no-break space before ¢
 function fmtPrice(cents) {
-    return cents.toFixed(1) + '  ¢';
+    return cents.toFixed(1) + ' ¢';
 }
 
 function priceColour(ratio) {

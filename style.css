@@ -871,15 +871,6 @@ a.popup-directions:hover {
   padding: 2px 2px 0;
 }
 
-/* Price unit spacing — widen visual gap regardless of font kerning */
-.popup-price-chip,
-.popup-delta,
-.popup-spark-range,
-.price-summary,
-.station-card-price,
-.update-badge {
-  word-spacing: 0.15em;
-}
 
 
 /* Sidebar empty state */
@@ -944,7 +935,7 @@ a.popup-directions:hover {
    ============================================================ */
 .update-badge {
   position: absolute;
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  bottom: calc(14px + env(safe-area-inset-bottom));
   left: calc(12px + env(safe-area-inset-left));
   z-index: 500;
   background: var(--surface-alpha);
@@ -992,17 +983,15 @@ a.popup-directions:hover {
   animation: markerAppear 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* Softer popup entrance */
+/* Softer popup entrance. IMPORTANT: animate the content wrapper — never .leaflet-popup
+   itself — because Leaflet positions the popup via transform on .leaflet-popup. */
+@keyframes popupAppear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  transition: transform 160ms ease, opacity 160ms ease;
-}
-@keyframes popupAppear {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.leaflet-popup {
-  animation: popupAppear 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: popupAppear 180ms ease-out both;
 }
 
 /* Hide default Leaflet zoom — replaced by FAB stack */

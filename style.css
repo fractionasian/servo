@@ -241,7 +241,7 @@ html, body {
    ============================================================ */
 .price-summary {
   position: absolute;
-  top: calc(56px + env(safe-area-inset-top));
+  top: calc(66px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -266,7 +266,7 @@ html, body {
    ============================================================ */
 .colour-legend {
   position: absolute;
-  top: calc(84px + env(safe-area-inset-top));
+  top: calc(96px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -715,12 +715,14 @@ html, body {
   margin-top: 8px;
 }
 
-.popup-directions {
+/* Bumped specificity to beat Leaflet's default .leaflet-popup-content a rule */
+.leaflet-popup-content a.popup-directions,
+a.popup-directions {
   display: block;
   margin-top: 10px;
-  padding: 8px 14px;
-  background: #2563eb;
-  color: #fff;
+  padding: 9px 14px;
+  background: #1d4ed8;
+  color: #ffffff;
   border-radius: var(--radius);
   font-size: 14px;
   font-weight: 600;
@@ -731,8 +733,10 @@ html, body {
   white-space: nowrap;
 }
 
-.popup-directions:hover {
-  background: #1d4ed8;
+.leaflet-popup-content a.popup-directions:hover,
+a.popup-directions:hover {
+  background: #1e40af;
+  color: #ffffff;
 }
 
 /* Trend row inside popup — delta chip + sparkline */

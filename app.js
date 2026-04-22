@@ -338,7 +338,7 @@ function buildPopupHtml(s) {
         var p = priceFor(f, s.id);
         if (p == null) continue;
         var cls = 'popup-price-chip' + (f === activeFuel ? ' active-fuel' : '');
-        chips += '<span class="' + cls + '"><strong>' + FUEL_LABEL[f] + '</strong> ' + p.toFixed(1) + 'c</span>';
+        chips += '<span class="' + cls + '"><strong>' + FUEL_LABEL[f] + '</strong> ' + fmtPrice(p) + '</span>';
     }
     var delta = historyDeltaChip(s.id, activeFuel);
     var spark = sparklineSvg(s.id, activeFuel);
@@ -373,7 +373,7 @@ function historyDeltaChip(id, fuel) {
     if (Math.abs(diff) < 0.05) return '<span class="popup-delta flat">— unchanged</span>';
     var cls = diff > 0 ? 'up' : 'down';
     var arrow = diff > 0 ? '▲' : '▼';
-    return '<span class="popup-delta ' + cls + '">' + arrow + ' ' + Math.abs(diff).toFixed(1) + 'c vs yesterday</span>';
+    return '<span class="popup-delta ' + cls + '">' + arrow + ' ' + fmtPrice(Math.abs(diff)) + ' vs yesterday</span>';
 }
 
 function sparklineSvg(id, fuel) {
@@ -412,13 +412,18 @@ function updatePriceSummary() {
     var min = Math.min.apply(null, prices);
     var max = Math.max.apply(null, prices);
     var avg = prices.reduce(function(a, b) { return a + b; }, 0) / prices.length;
-    el.textContent = min.toFixed(1) + '¢ – ' + max.toFixed(1) + '¢ · avg ' + avg.toFixed(1) + '¢ · ' + stations.length + ' stations';
+    el.textContent = fmtPrice(min) + ' – ' + fmtPrice(max) + ' · avg ' + fmtPrice(avg) + ' · ' + stations.length + ' stations';
 }
 
 function escapeHtml(str) {
     var d = document.createElement('div');
     d.textContent = str || '';
     return d.innerHTML;
+}
+
+// Consistent price formatting: "199.9 ¢" — narrow no-break space before ¢
+function fmtPrice(cents) {
+    return cents.toFixed(1) + ' ¢';
 }
 
 function priceColour(ratio) {
@@ -560,7 +565,7 @@ function makeStationCard(station, rank, metaText, priceClass, clickFn) {
 
     var priceEl = document.createElement('span');
     priceEl.className = 'station-card-price ' + priceClass;
-    priceEl.textContent = station.price.toFixed(1) + 'c';
+    priceEl.textContent = fmtPrice(station.price);
 
     header.appendChild(nameGroup);
     header.appendChild(priceEl);

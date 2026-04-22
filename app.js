@@ -379,6 +379,9 @@ function historyDeltaChip(id, fuel) {
 function sparklineSvg(id, fuel) {
     var series = historySeries(id, fuel);
     if (!series || series.length < 3) return '';
+    if (!historyData || !historyData.days) return '';
+    var days = historyData.days;
+
     var points = [];
     for (var i = 0; i < series.length; i++) {
         if (series[i] != null) points.push({ i: i, v: series[i] });
@@ -388,15 +391,37 @@ function sparklineSvg(id, fuel) {
     var minV = Math.min.apply(null, vs);
     var maxV = Math.max.apply(null, vs);
     var range = maxV - minV || 1;
-    var W = 90, H = 22, PAD = 2;
+    var W = 180, H = 36, PAD = 3;
     var n = series.length - 1 || 1;
     var d = points.map(function(p, idx) {
         var x = PAD + (p.i / n) * (W - PAD * 2);
         var y = PAD + (1 - (p.v - minV) / range) * (H - PAD * 2);
         return (idx === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
-    return '<svg class="popup-spark" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
-        '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    // Last point marker
+    var last = points[points.length - 1];
+    var lastX = PAD + (last.i / n) * (W - PAD * 2);
+    var lastY = PAD + (1 - (last.v - minV) / range) * (H - PAD * 2);
+
+    var firstDate = formatDayShort(days[0]);
+    var lastDate = formatDayShort(days[days.length - 1]);
+    var title = series.length + '-day range: ' + fmtPrice(minV) + ' – ' + fmtPrice(maxV);
+
+    return '<div class="popup-spark-wrap" title="' + escapeHtml(title) + '">' +
+        '<div class="popup-spark-range"><span>' + fmtPrice(maxV) + '</span><span>' + fmtPrice(minV) + '</span></div>' +
+        '<svg class="popup-spark" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+          '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '<circle cx="' + lastX.toFixed(1) + '" cy="' + lastY.toFixed(1) + '" r="2.5" fill="currentColor"/>' +
+        '</svg>' +
+        '<div class="popup-spark-axis"><span>' + firstDate + '</span><span>' + lastDate + '</span></div>' +
+      '</div>';
+}
+
+function formatDayShort(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
 // ============================================================
@@ -423,7 +448,7 @@ function escapeHtml(str) {
 
 // Consistent price formatting: "199.9 ¢" — narrow no-break space before ¢
 function fmtPrice(cents) {
-    return cents.toFixed(1) + ' ¢';
+    return cents.toFixed(1) + '  ¢';
 }
 
 function priceColour(ratio) {

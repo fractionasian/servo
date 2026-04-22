@@ -742,16 +742,17 @@ a.popup-directions:hover {
 /* Trend row inside popup — delta chip + sparkline */
 .popup-trend {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
   color: var(--text-dim);
 }
 
 .popup-delta {
+  align-self: flex-start;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   background: var(--surface2);
 }
@@ -760,9 +761,55 @@ a.popup-directions:hover {
 .popup-delta.down { color: var(--green); }
 .popup-delta.flat { color: var(--text-dim); }
 
-.popup-spark {
+.popup-spark-wrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 6px;
+  align-items: center;
   color: var(--accent);
-  opacity: 0.85;
+}
+
+.popup-spark {
+  grid-column: 2;
+  grid-row: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.popup-spark-range {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1;
+  height: 36px;
+  padding: 2px 0;
+}
+
+.popup-spark-axis {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 2px 2px 0;
+}
+
+/* Price unit spacing — widen visual gap regardless of font kerning */
+.popup-price-chip,
+.popup-delta,
+.popup-spark-range,
+.price-summary,
+.station-card-price,
+.update-badge {
+  word-spacing: 0.15em;
 }
 
 /* Popup price chips — show all fuels */

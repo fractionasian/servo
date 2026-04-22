@@ -92,19 +92,44 @@ def parse_rss(xml_str: str) -> list[dict]:
     return stations
 
 
+def station_id(lat: float, lng: float) -> str:
+    """Stable station identifier derived from coordinates (~1m precision)."""
+    return f'{lat:.5f},{lng:.5f}'
+
+
 def build_prices_json(fuel_data: dict) -> str:
-    """Wrap fuel data into the output JSON structure.
+    """Wrap fuel data into the normalised output JSON structure.
 
-    Args:
-        fuel_data: Dict mapping fuel type names to lists of station dicts.
+    Schema:
+        updated:  ISO 8601 + AWST offset
+        stations: [{ id, name, brand, address, suburb, lat, lng }]
+        prices:   { fuel_type: { station_id: price } }
 
-    Returns:
-        JSON string with 'updated' (ISO 8601 + AWST offset) and 'fuel_types'.
+    Station identity is coord-based so a station keeps its id across runs
+    even if its trading name or brand string shifts slightly.
     """
-    updated = datetime.now(tz=AWST).isoformat(timespec='seconds')
+    stations_by_id: dict[str, dict] = {}
+    prices: dict[str, dict[str, float]] = {fuel: {} for fuel in fuel_data}
+
+    for fuel, station_list in fuel_data.items():
+        for s in station_list:
+            sid = station_id(s['lat'], s['lng'])
+            if sid not in stations_by_id:
+                stations_by_id[sid] = {
+                    'id':      sid,
+                    'name':    s['station'],
+                    'brand':   s['brand'],
+                    'address': s['address'],
+                    'suburb':  s['suburb'],
+                    'lat':     s['lat'],
+                    'lng':     s['lng'],
+                }
+            prices[fuel][sid] = s['price']
+
     payload = {
-        'updated':    updated,
-        'fuel_types': fuel_data,
+        'updated':  datetime.now(tz=AWST).isoformat(timespec='seconds'),
+        'stations': list(stations_by_id.values()),
+        'prices':   prices,
     }
     return json.dumps(payload, indent=2)
 

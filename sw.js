@@ -1,6 +1,6 @@
 // Cache version — bump whenever shell assets (HTML/CSS/JS) change.
 // Also embedded in the cache name so browsers evict old versions cleanly.
-var SHELL_VERSION = '2026-04-22-4';
+var SHELL_VERSION = '2026-04-22-5';
 var CACHE_NAME = 'servo-' + SHELL_VERSION;
 
 var SHELL_ASSETS = [

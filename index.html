@@ -53,6 +53,14 @@
 
   <!-- FAB stack — bottom right -->
   <div class="fab-stack">
+    <button class="fab" id="infoBtn" title="About Servo (I)" aria-label="About Servo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </button>
+    <div class="fab-divider"></div>
     <button class="fab" id="brandFilterBtn" title="Filter brands (B)" aria-label="Filter brands">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -96,6 +104,25 @@
 
   <!-- Update badge -->
   <div class="update-badge" id="updateBadge"></div>
+
+  <!-- Info / about modal -->
+  <div class="modal-overlay" id="infoModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <span>About Servo</span>
+        <button class="modal-close" id="infoModalClose">✕</button>
+      </div>
+      <div class="modal-body info-modal-body">
+        <p class="info-blurb">Perth fuel prices, straight from FuelWatch. Free, no ads, no account. Updated daily.</p>
+        <p class="info-credits">Data: <a href="https://www.fuelwatch.wa.gov.au" target="_blank" rel="noopener">FuelWatch WA</a> · Tiles: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></p>
+        <div class="info-support">
+          <p class="info-support-heading">Support this project</p>
+          <p class="info-support-blurb">If Servo saves you a dollar at the pump, consider sending it the other way.</p>
+          <a class="info-support-btn" href="https://ko-fi.com/fractionasian" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Brand filter modal -->
   <div class="modal-overlay" id="brandModal" hidden>

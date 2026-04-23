@@ -171,6 +171,7 @@ function loadPrices() {
             setupFuelSelector();
             setupRoutePanel();
             setupBrandFilter();
+            setupInfoPanel();
             setupNearbyButton();
             setupSortToggle();
         })
@@ -1133,6 +1134,30 @@ function setupBrandFilter() {
     });
 }
 
+function setupInfoPanel() {
+    var btn = document.getElementById('infoBtn');
+    var modal = document.getElementById('infoModal');
+    var closeBtn = document.getElementById('infoModalClose');
+    if (!btn || !modal) return;
+
+    btn.addEventListener('click', function() {
+        modal.hidden = false;
+        btn.classList.add('active');
+    });
+
+    closeBtn.addEventListener('click', function() {
+        modal.hidden = true;
+        btn.classList.remove('active');
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.hidden = true;
+            btn.classList.remove('active');
+        }
+    });
+}
+
 function populateBrandFilter() {
     var body = document.getElementById('brandModalBody');
     while (body.firstChild) body.removeChild(body.firstChild);
@@ -1231,7 +1256,14 @@ function setupKeyboardShortcuts() {
             case '4': setActiveFuel('diesel'); break;
             case 'f': case 'F': findNearby(); break;
             case 'b': case 'B': document.getElementById('brandFilterBtn').click(); break;
+            case 'i': case 'I': document.getElementById('infoBtn').click(); break;
             case 'Escape':
+                var infoModal = document.getElementById('infoModal');
+                if (infoModal && !infoModal.hidden) {
+                    infoModal.hidden = true;
+                    document.getElementById('infoBtn').classList.remove('active');
+                    return;
+                }
                 var modal = document.getElementById('brandModal');
                 if (modal && !modal.hidden) {
                     modal.hidden = true;

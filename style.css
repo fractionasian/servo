@@ -193,6 +193,65 @@ html, body {
   gap: 4px;
 }
 
+/* Info modal overrides the grid — single column, prose layout */
+.info-modal-body {
+  display: block;
+  padding: 16px 18px 18px;
+}
+.info-blurb {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+.info-credits {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 18px;
+}
+.info-credits a {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+}
+.info-credits a:hover {
+  color: var(--text);
+}
+.info-support {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.info-support-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.info-support-blurb {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.info-support-btn {
+  display: inline-block;
+  padding: 8px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.info-support-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .brand-modal-actions {
   grid-column: 1 / -1;
   display: flex;

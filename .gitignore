@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .claude/settings.local.json
+node_modules/
+
+# lint gate temp bundle
+.eslint-bundle.js

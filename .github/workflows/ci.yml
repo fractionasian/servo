@@ -1,0 +1,25 @@
+name: CI
+
+# no-undef lint gate on every push/PR. servo is a vanilla classic-script PWA
+# (same hazard class as legwork): a missed reference after a rename is valid
+# syntax but a runtime ReferenceError. The lint catches it before it ships.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: no-undef lint gate
+        run: npm run lint

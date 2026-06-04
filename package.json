@@ -1,0 +1,12 @@
+{
+  "name": "servo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WA fuel price map (vanilla Leaflet PWA)",
+  "scripts": {
+    "lint": "bash scripts/lint.sh"
+  },
+  "devDependencies": {
+    "eslint": "9.39.4"
+  }
+}
